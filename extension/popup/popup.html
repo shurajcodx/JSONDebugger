@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>JSON Forge</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <div class="popup">
+      <div class="header">
+        <div class="header-left">
+          <div class="logo">{ }</div>
+          <span class="title">JSON Forge</span>
+        </div>
+        <span class="badge neutral" id="badge">Ready</span>
+      </div>
+
+      <div class="url-bar" id="tabDetect" hidden>
+        <div class="url-dot"></div>
+        <span class="url-text" id="tabDetectText">Checking active tab...</span>
+        <button type="button" class="format-btn" id="formatTabButton">Format tab</button>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="raw">Raw JSON</div>
+        <div class="tab" data-tab="url">URL</div>
+        <div class="tab" data-tab="workspace">Saved Snippets</div>
+      </div>
+
+      <!-- RAW JSON TAB -->
+      <div class="tab-panel active" id="panel-raw">
+        <div class="input-section">
+          <div class="input-toolbar">
+            <span class="input-label">Input</span>
+            <div class="btn-row">
+              <button type="button" class="sm-btn primary" id="formatButton">Format</button>
+              <button type="button" class="sm-btn primary" id="rawSaveBtn" disabled>+ Save</button>
+              <button type="button" class="sm-btn" id="applyFixButton" disabled>Apply Fix</button>
+              <button type="button" class="sm-btn" id="clearButton">Clear</button>
+            </div>
+          </div>
+          <textarea id="input" spellcheck="false" placeholder='Paste JSON, {foo: "bar"}, or a=1&b=2'></textarea>
+        </div>
+        
+        <div class="notice-box error" id="errorBox" hidden></div>
+        <div class="notice-box fix" id="fixBox" hidden></div>
+
+        <div class="output-section">
+          <div class="output-toolbar">
+            <span class="output-label">Output</span>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <div class="out-seg">
+                <button type="button" class="out-seg-btn active" id="prettyModeButton">Pretty</button>
+                <button type="button" class="out-seg-btn" id="treeModeButton">Tree</button>
+              </div>
+              <button type="button" class="copy-btn" id="copyButton" disabled>Copy</button>
+            </div>
+          </div>
+          <div class="output-pre"><pre id="output"></pre></div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="stat-label">Keys</div><div class="stat-val" id="s-keys">—</div></div>
+          <div class="stat"><div class="stat-label">Objects</div><div class="stat-val" id="s-obj">—</div></div>
+          <div class="stat"><div class="stat-label">Arrays</div><div class="stat-val" id="s-arr">—</div></div>
+          <div class="stat"><div class="stat-label">Size</div><div class="stat-val" id="s-size">—</div></div>
+        </div>
+      </div>
+
+      <!-- URL TAB -->
+      <div class="tab-panel" id="panel-url">
+        <div class="input-section">
+          <div class="input-toolbar">
+            <span class="input-label">Fetch from URL</span>
+          </div>
+          <div class="url-input-wrap">
+            <input class="url-field" id="urlInput" type="text" placeholder="https://api.example.com/data.json" spellcheck="false" />
+            <button type="button" class="fetch-btn" id="loadUrlButton">Fetch</button>
+          </div>
+          <div class="url-hint">Try a sample endpoint:</div>
+          <div class="url-examples">
+            <span class="url-chip" data-url="https://jsonplaceholder.typicode.com/todos/1">todos/1</span>
+            <span class="url-chip" data-url="https://jsonplaceholder.typicode.com/users/1">users/1</span>
+            <span class="url-chip" data-url="https://jsonplaceholder.typicode.com/posts/1">posts/1</span>
+          </div>
+        </div>
+        
+        <div class="notice-box error" id="urlErrorBox" hidden></div>
+
+        <div class="output-section">
+          <div class="output-toolbar">
+            <span class="output-label">Response</span>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <div class="out-seg">
+                <button type="button" class="out-seg-btn active" id="urlPrettyModeButton">Pretty</button>
+                <button type="button" class="out-seg-btn" id="urlTreeModeButton">Tree</button>
+              </div>
+              <button type="button" class="copy-btn" id="urlSaveBtn" disabled>+ Save</button>
+              <button type="button" class="copy-btn" id="urlCopyButton" disabled>Copy</button>
+            </div>
+          </div>
+          <div class="output-pre"><pre id="urlOutput">
+<span style="color:var(--color-text-tertiary);font-size:11px;">Hit Fetch or pick a sample above to load JSON from a URL.</span></pre></div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="stat-label">Keys</div><div class="stat-val" id="u-keys">—</div></div>
+          <div class="stat"><div class="stat-label">Objects</div><div class="stat-val" id="u-obj">—</div></div>
+          <div class="stat"><div class="stat-label">Arrays</div><div class="stat-val" id="u-arr">—</div></div>
+          <div class="stat"><div class="stat-label">Status</div><div class="stat-val" id="u-status">—</div></div>
+        </div>
+      </div>
+
+      <!-- WORKSPACE TAB -->
+      <div class="tab-panel" id="panel-workspace">
+        <div class="ws-toolbar">
+          <span class="ws-label">Saved snippets</span>
+          <div class="ws-actions">
+            <button type="button" class="sm-btn" id="ws-clear-btn">Clear all</button>
+          </div>
+        </div>
+        <div class="ws-list" id="ws-list"></div>
+        <button type="button" class="ws-new-btn" id="ws-new-btn">+ New snippet</button>
+      </div>
+
+    </div>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

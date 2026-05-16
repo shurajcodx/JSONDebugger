@@ -1,0 +1,9 @@
+{
+  "name": "json-forge-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/core.test.mjs && node tests/content-script.test.mjs && node tests/manifest.test.mjs"
+  }
+}
