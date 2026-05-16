@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { renderTree, syntaxHighlightJSON } from "../src/formatter.js";
-import { parseInput } from "../src/parser.js";
+import { renderTree, syntaxHighlightJSON } from "../extension/utilities/formatter.js";
+import { parseInput } from "../extension/utilities/parser.js";
 
 const valid = parseInput('{"name":"Ada","roles":["dev"]}');
 assert.equal(valid.ok, true);

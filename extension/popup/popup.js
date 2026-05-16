@@ -7,6 +7,7 @@ const badge = document.querySelector("#badge");
 const tabDetect = document.querySelector("#tabDetect");
 const tabDetectText = document.querySelector("#tabDetectText");
 const formatTabButton = document.querySelector("#formatTabButton");
+const themeButton = document.querySelector("#themeButton");
 
 // Raw JSON Tab
 const input = document.querySelector("#input");
@@ -43,10 +44,81 @@ let rawOutputMode = "pretty";
 let urlOutputMode = "pretty";
 let parseTimer = null;
 let activeTabUrl = "";
+const MAX_URL_FETCH_BYTES = 5 * 1024 * 1024;
+const URL_FETCH_TIMEOUT_MS = 10000;
+const THEME_STORAGE_KEY = "jsonDebuggerTheme";
+const THEMES = ["dark", "light"];
+let currentTheme = "dark";
 
-// --- Initialization ---
-const sampleInput = '{\n  "user": "Ada",\n  "roles": ["dev", "qa",],\n  "active": true\n}';
-input.value = sampleInput;
+// --- Theme ---
+initTheme();
+
+async function initTheme() {
+  const savedTheme = await loadThemePreference();
+  applyTheme(savedTheme);
+}
+
+function applyTheme(theme) {
+  currentTheme = THEMES.includes(theme) ? theme : "dark";
+  document.documentElement.dataset.theme = currentTheme;
+  const nextTheme = currentTheme === "dark" ? "light" : "dark";
+  themeButton.textContent = currentTheme === "dark" ? "☾" : "☀";
+  themeButton.setAttribute("aria-label", `Switch to ${nextTheme} theme`);
+  themeButton.title = `Switch to ${nextTheme} theme`;
+}
+
+function loadThemePreference() {
+  return new Promise((resolve) => {
+    if (!globalThis.chrome?.storage) {
+      resolve(localStorage.getItem(THEME_STORAGE_KEY) || "dark");
+      return;
+    }
+
+    chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
+      resolve(result[THEME_STORAGE_KEY] || "dark");
+    });
+  });
+}
+
+function saveThemePreference(theme) {
+  if (!globalThis.chrome?.storage) {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    return;
+  }
+
+  chrome.storage.local.set({ [THEME_STORAGE_KEY]: theme });
+}
+
+themeButton.addEventListener("click", () => {
+  const nextTheme = currentTheme === "dark" ? "light" : "dark";
+  applyTheme(nextTheme);
+  saveThemePreference(nextTheme);
+  syncActiveJsonPageTheme(nextTheme);
+});
+
+function syncActiveJsonPageTheme(theme) {
+  if (!globalThis.chrome?.tabs || !globalThis.chrome?.scripting) return;
+
+  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    if (!tab?.id) return;
+
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: applyJsonDebuggerPageTheme,
+      args: [theme]
+    }).catch(() => {
+      // Some pages do not allow injection; saved preference still applies next time.
+    });
+  });
+}
+
+function applyJsonDebuggerPageTheme(theme) {
+  if (!document.getElementById("json-debugger-page-viewer")) {
+    return;
+  }
+
+  document.documentElement.dataset.jsonDebuggerTheme = theme === "light" ? "light" : "dark";
+}
 
 // --- Tab Switching ---
 document.querySelectorAll('.tab').forEach(tab => {
@@ -237,12 +309,12 @@ async function loadJsonFromUrl(rawUrl) {
 
   try {
     urlInput.value = url;
-    const response = await fetch(url, {
-      credentials: "include",
+    const response = await fetchWithTimeout(url, {
+      credentials: "omit",
       cache: "no-store",
       headers: { Accept: "application/json, text/plain;q=0.9, */*;q=0.8" }
-    });
-    const text = await response.text();
+    }, URL_FETCH_TIMEOUT_MS);
+    const text = await readResponseTextWithLimit(response, MAX_URL_FETCH_BYTES);
     const result = parseInput(text);
     
     if (!result.ok) {
@@ -263,6 +335,63 @@ async function loadJsonFromUrl(rawUrl) {
     loadUrlButton.disabled = false;
     loadUrlButton.textContent = "Fetch";
   }
+}
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function readResponseTextWithLimit(response, maxBytes) {
+  const contentLength = Number(response.headers.get("content-length") || 0);
+
+  if (contentLength > maxBytes) {
+    throw new Error(`Response is larger than ${formatByteLimit(maxBytes)}.`);
+  }
+
+  if (!response.body?.getReader) {
+    const text = await response.text();
+    if (new Blob([text]).size > maxBytes) {
+      throw new Error(`Response is larger than ${formatByteLimit(maxBytes)}.`);
+    }
+    return text;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const chunks = [];
+  let receivedBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    receivedBytes += value.byteLength;
+    if (receivedBytes > maxBytes) {
+      await reader.cancel();
+      throw new Error(`Response is larger than ${formatByteLimit(maxBytes)}.`);
+    }
+
+    chunks.push(decoder.decode(value, { stream: true }));
+  }
+
+  chunks.push(decoder.decode());
+  return chunks.join("");
+}
+
+function formatByteLimit(bytes) {
+  return `${Math.round((bytes / 1024 / 1024) * 10) / 10} MB`;
 }
 
 function normalizeUrl(value) {
@@ -339,31 +468,140 @@ urlTreeModeButton.addEventListener("click", () => {
   if (urlResult?.ok) renderOutput(urlOutput, urlResult.value, urlOutputMode);
 });
 
-// --- Active Tab Loading ---
-async function detectActiveJsonTab() {
+// --- Active Tab Formatting ---
+async function prepareActiveTabFormatting() {
   if (!globalThis.chrome?.tabs) return;
 
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.url || !/^https?:\/\//i.test(tab.url)) return;
-
   try {
-    const response = await fetch(tab.url, {
-      credentials: "include",
-      cache: "no-store",
-      headers: { Accept: "application/json, text/plain;q=0.9, */*;q=0.8" }
-    });
-    const text = await response.text();
-    JSON.parse(text); // verify it's JSON
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url || !/^https?:\/\//i.test(tab.url)) {
+      tabDetect.hidden = true;
+      activeTabUrl = "";
+      return;
+    }
+
     activeTabUrl = tab.url;
     urlInput.value = tab.url;
-    input.value = text;
-    renderRawResult();
-    
     tabDetect.hidden = false;
-    tabDetectText.textContent = new URL(tab.url).hostname;
+    tabDetectText.textContent = `Ready to format ${new URL(tab.url).hostname}`;
+
+    await importActiveTabJson(tab);
   } catch {
     tabDetect.hidden = true;
     activeTabUrl = "";
+  }
+}
+
+async function importActiveTabJson(tab) {
+  if (!globalThis.chrome?.scripting || !tab?.id) return;
+
+  try {
+    const [injection] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: extractJsonTextFromPage
+    });
+    const detected = injection?.result;
+
+    if (!detected?.ok) {
+      return;
+    }
+
+    input.value = detected.rawText;
+    renderRawResult();
+    tabDetectText.textContent = `Loaded JSON from ${new URL(tab.url).hostname}`;
+  } catch {
+    // Some pages block script injection; the manual formatter button still handles eligible tabs.
+  }
+}
+
+function extractJsonTextFromPage() {
+  const PAGE_VIEWER_ID = "json-debugger-page-viewer";
+  const MAX_AUTO_IMPORT_CHARS = 5 * 1024 * 1024;
+
+  if (!document.body) {
+    return { ok: false };
+  }
+
+  const existingViewerText = getExistingViewerText();
+  if (existingViewerText) {
+    return parseDetectedText(existingViewerText);
+  }
+
+  const contentType = document.contentType || "";
+  const likelyJsonMime = /(^|[/+])json\b/i.test(contentType);
+  const rawDocumentShape = isRawDocumentShape(document);
+
+  if (!likelyJsonMime && !rawDocumentShape) {
+    return { ok: false };
+  }
+
+  const rawText = getRawPageText(document);
+
+  if (!rawText || rawText.length > MAX_AUTO_IMPORT_CHARS) {
+    return { ok: false };
+  }
+
+  const likelyJsonText = /^[\s\n\r]*[{[]/.test(rawText);
+
+  if (!likelyJsonMime && !likelyJsonText) {
+    return { ok: false };
+  }
+
+  return parseDetectedText(rawText);
+
+  function getExistingViewerText() {
+    const viewer = document.getElementById(PAGE_VIEWER_ID);
+    if (!viewer) {
+      return "";
+    }
+
+    const prettyView = viewer.querySelector("[data-view='pretty']");
+    return prettyView?.textContent?.trim() || "";
+  }
+
+  function parseDetectedText(rawText) {
+    if (!rawText || rawText.length > MAX_AUTO_IMPORT_CHARS) {
+      return { ok: false };
+    }
+
+    try {
+      const value = JSON.parse(rawText);
+
+      if (value === null || typeof value !== "object") {
+        return { ok: false };
+      }
+
+      return {
+        ok: true,
+        rawText
+      };
+    } catch {
+      return { ok: false };
+    }
+  }
+
+  function isRawDocumentShape(doc) {
+    const elementChildren = [...doc.body.children].filter((child) => {
+      const tag = child.tagName;
+      return tag !== "SCRIPT" && tag !== "STYLE";
+    });
+
+    if (elementChildren.length === 0) {
+      return true;
+    }
+
+    if (elementChildren.length === 1) {
+      return ["PRE", "TEXTAREA", "CODE"].includes(elementChildren[0].tagName);
+    }
+
+    return false;
+  }
+
+  function getRawPageText(doc) {
+    const body = doc.body;
+    const onlyPre = body.children.length === 1 && body.firstElementChild?.tagName === "PRE";
+    const source = onlyPre ? body.firstElementChild.textContent : body.innerText || body.textContent || "";
+    return source.trim();
   }
 }
 
@@ -445,6 +683,6 @@ wsNewBtn.addEventListener("click", () => {
 });
 
 // --- Run ---
-detectActiveJsonTab();
+prepareActiveTabFormatting();
 renderRawResult();
 renderWorkspace();

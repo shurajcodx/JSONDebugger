@@ -4,6 +4,7 @@
   const MENU_ID = "json-debugger-menu-button";
   const MENU_PANEL_ID = "json-debugger-menu-panel";
   const MAX_AUTO_DETECT_CHARS = 5 * 1024 * 1024;
+  const THEME_STORAGE_KEY = "jsonDebuggerTheme";
 
   if (document.getElementById(ROOT_ID)) {
     return;
@@ -15,11 +16,21 @@
     return;
   }
 
-  injectStyles();
-  renderJsonPage(detected);
+  loadThemePreference((theme) => {
+    injectStyles();
+    renderJsonPage(detected, theme);
+  });
 
   function detectJsonPage(doc) {
     if (!doc.body) {
+      return { ok: false };
+    }
+
+    const contentType = doc.contentType || "";
+    const likelyJsonMime = /(^|[/+])json\b/i.test(contentType);
+    const rawDocumentShape = isRawDocumentShape(doc);
+
+    if (!likelyJsonMime && !rawDocumentShape) {
       return { ok: false };
     }
 
@@ -29,12 +40,9 @@
       return { ok: false };
     }
 
-    const contentType = doc.contentType || "";
-    const likelyJsonMime = /(^|[/+])json\b/i.test(contentType);
-    const rawDocumentShape = isRawDocumentShape(doc);
     const likelyJsonText = /^[\s\n\r]*[{[]/.test(rawText);
 
-    if (!likelyJsonMime && (!rawDocumentShape || !likelyJsonText)) {
+    if (!likelyJsonMime && !likelyJsonText) {
       return { ok: false };
     }
 
@@ -80,24 +88,26 @@
     return source.trim();
   }
 
-  function renderJsonPage(detectedJson) {
+  function renderJsonPage(detectedJson, theme) {
     const state = {
       mode: "pretty",
       pretty: formatJSON(detectedJson.value),
       raw: detectedJson.rawText,
       value: detectedJson.value
     };
+    const logoUrl = getExtensionAssetUrl("icons/logo.png");
+    const logoMarkup = logoUrl
+      ? `<img class="jd-menu-logo" src="${escapeHtml(logoUrl)}" alt="" aria-hidden="true">`
+      : `<span class="jd-menu-logo-fallback" aria-hidden="true">{ }</span>`;
 
     document.documentElement.classList.add("json-debugger-active");
+    document.documentElement.dataset.jsonDebuggerTheme = theme;
     document.body.innerHTML = `
       <main id="${ROOT_ID}" class="jd-page">
         <pre class="jd-output jd-pretty" data-view="pretty"></pre>
         <div class="jd-output jd-tree" data-view="tree" hidden></div>
         <button type="button" id="${MENU_ID}" aria-label="JSON Debugger menu" title="JSON Debugger menu">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 4H8a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h2" />
-            <path d="M14 4h2a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-2" />
-          </svg>
+          ${logoMarkup}
         </button>
         <div id="${MENU_PANEL_ID}" hidden>
           <button type="button" class="is-active" data-action="pretty">Pretty</button>
@@ -169,22 +179,50 @@
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
+      html.json-debugger-active {
+        --jd-bg: #1e1e2e;
+        --jd-surface: #11111b;
+        --jd-panel: #181825;
+        --jd-border: #313244;
+        --jd-text: #cdd6f4;
+        --jd-muted: #a6adc8;
+        --jd-key: #89b4fa;
+        --jd-string: #a6e3a1;
+        --jd-number: #fab387;
+        --jd-boolean: #f38ba8;
+        --jd-null: #cba6f7;
+      }
+
+      html.json-debugger-active[data-json-debugger-theme="light"] {
+        --jd-bg: #f8fafc;
+        --jd-surface: #ffffff;
+        --jd-panel: #eef2f7;
+        --jd-border: #d9e1ec;
+        --jd-text: #172033;
+        --jd-muted: #68768c;
+        --jd-key: #2563eb;
+        --jd-string: #15803d;
+        --jd-number: #b45309;
+        --jd-boolean: #be123c;
+        --jd-null: #7c3aed;
+      }
+
       html.json-debugger-active,
       html.json-debugger-active body {
         min-height: 100%;
         margin: 0 !important;
-        background: #1e1e2e !important;
+        background: var(--jd-bg) !important;
       }
 
       html.json-debugger-active body {
-        color: #cdd6f4 !important;
+        color: var(--jd-text) !important;
         font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace !important;
       }
 
       #${ROOT_ID} {
         min-height: 100vh;
         padding: 24px 30px;
-        background: #1e1e2e;
+        background: var(--jd-bg);
       }
 
       .jd-output {
@@ -195,7 +233,7 @@
         overflow: auto;
         border: 0;
         background: transparent;
-        color: #cdd6f4;
+        color: var(--jd-text);
         white-space: pre;
         font: 13px/1.58 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
         tab-size: 2;
@@ -206,30 +244,30 @@
       }
 
       .jd-punctuation {
-        color: #a6adc8;
+        color: var(--jd-muted);
       }
 
       .jd-key {
-        color: #89b4fa;
+        color: var(--jd-key);
         font-weight: 700;
       }
 
       .jd-string {
-        color: #a6e3a1;
+        color: var(--jd-string);
       }
 
       .jd-number {
-        color: #fab387;
+        color: var(--jd-number);
         font-weight: 700;
       }
 
       .jd-boolean {
-        color: #f38ba8;
+        color: var(--jd-boolean);
         font-weight: 700;
       }
 
       .jd-null {
-        color: #cba6f7;
+        color: var(--jd-null);
         font-weight: 700;
       }
 
@@ -242,7 +280,7 @@
         position: relative;
         margin-left: 20px;
         padding-left: 12px;
-        border-left: 1px solid rgba(137, 180, 250, 0.16);
+        border-left: 1px solid color-mix(in srgb, var(--jd-key) 22%, transparent);
       }
 
       .jd-tree > details,
@@ -284,7 +322,7 @@
       }
 
       .jd-label {
-        color: #89b4fa;
+        color: var(--jd-key);
         font-weight: 700;
       }
 
@@ -292,24 +330,24 @@
         padding: 1px 6px;
         border: 1px solid rgba(166, 173, 200, 0.2);
         border-radius: 999px;
-        color: #bac2de;
-        background: rgba(166, 173, 200, 0.1);
+        color: var(--jd-muted);
+        background: color-mix(in srgb, var(--jd-muted) 10%, transparent);
         font: 11px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       .jd-type-object {
         border-color: rgba(137, 180, 250, 0.3);
-        color: #89b4fa;
+        color: var(--jd-key);
       }
 
       .jd-type-array {
         border-color: rgba(203, 166, 247, 0.3);
-        color: #cba6f7;
+        color: var(--jd-null);
       }
 
       .jd-value {
         min-width: 0;
-        color: #cdd6f4;
+        color: var(--jd-text);
       }
 
       #${MENU_ID} {
@@ -322,10 +360,10 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid #313244;
+        border: 1px solid var(--jd-border);
         border-radius: 8px;
-        background: #11111b;
-        color: #89b4fa;
+        background: var(--jd-surface);
+        color: var(--jd-key);
         font-size: 16px;
         font-weight: 700;
         font-family: ui-monospace, monospace;
@@ -335,8 +373,19 @@
       }
 
       #${MENU_ID}:hover {
-        background: #1e1e2e;
-        border-color: #89b4fa;
+        background: var(--jd-bg);
+        border-color: var(--jd-key);
+      }
+
+      .jd-menu-logo {
+        width: 24px;
+        height: 24px;
+        display: block;
+      }
+
+      .jd-menu-logo-fallback {
+        color: var(--jd-key);
+        font: 700 13px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
       }
 
       #${MENU_PANEL_ID} {
@@ -346,9 +395,9 @@
         right: 18px;
         width: 150px;
         padding: 6px;
-        border: 1px solid #313244;
+        border: 1px solid var(--jd-border);
         border-radius: 8px;
-        background: #181825;
+        background: var(--jd-panel);
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
       }
 
@@ -362,7 +411,7 @@
         border: 0;
         border-radius: 6px;
         background: transparent;
-        color: #cdd6f4;
+        color: var(--jd-text);
         cursor: pointer;
         font: 13px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         text-align: left;
@@ -372,30 +421,50 @@
 
       .jd-menu-divider {
         height: 1px;
-        background: #313244;
+        background: var(--jd-border);
         margin: 4px 0;
       }
 
       #${MENU_PANEL_ID} button:hover {
-        background: #313244;
+        background: var(--jd-border);
       }
 
       #${MENU_PANEL_ID} button.is-active {
         background: rgba(137, 180, 250, 0.15);
-        color: #89b4fa;
+        color: var(--jd-key);
         font-weight: 700;
       }
 
       #${MENU_PANEL_ID} button.is-active::after {
         content: "active";
         float: right;
-        color: #a6adc8;
+        color: var(--jd-muted);
         font-size: 11px;
         font-weight: 600;
       }
     `;
 
     document.documentElement.append(style);
+  }
+
+  function loadThemePreference(callback) {
+    if (!globalThis.chrome?.storage) {
+      callback("dark");
+      return;
+    }
+
+    chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
+      const theme = result[THEME_STORAGE_KEY] === "light" ? "light" : "dark";
+      callback(theme);
+    });
+  }
+
+  function getExtensionAssetUrl(path) {
+    try {
+      return globalThis.chrome?.runtime?.getURL?.(path) || "";
+    } catch {
+      return "";
+    }
   }
 
   function formatJSON(value) {
