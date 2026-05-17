@@ -6,22 +6,32 @@
   const MAX_AUTO_DETECT_CHARS = 5 * 1024 * 1024;
   const THEME_STORAGE_KEY = "jsonDebuggerTheme";
 
-  if (document.getElementById(ROOT_ID)) {
-    return;
-  }
+  const isRawDocumentShape = (doc) => {
+    const body = doc.body;
+    const elementChildren = [...body.children].filter((child) => {
+      const tag = child.tagName;
+      return tag !== "SCRIPT" && tag !== "STYLE";
+    });
 
-  const detected = detectJsonPage(document);
+    if (elementChildren.length === 0) {
+      return true;
+    }
 
-  if (!detected.ok) {
-    return;
-  }
+    if (elementChildren.length === 1) {
+      return ["PRE", "TEXTAREA", "CODE"].includes(elementChildren[0].tagName);
+    }
 
-  loadThemePreference((theme) => {
-    injectStyles();
-    renderJsonPage(detected, theme);
-  });
+    return false;
+  };
 
-  function detectJsonPage(doc) {
+  const getRawPageText = (doc) => {
+    const body = doc.body;
+    const onlyPre = body.children.length === 1 && body.firstElementChild?.tagName === "PRE";
+    const source = onlyPre ? body.firstElementChild.textContent : body.innerText || body.textContent;
+    return source.trim();
+  };
+
+  const detectJsonPage = (doc) => {
     if (!doc.body) {
       return { ok: false };
     }
@@ -61,117 +71,21 @@
     } catch {
       return { ok: false };
     }
-  }
+  };
 
-  function isRawDocumentShape(doc) {
-    const body = doc.body;
-    const elementChildren = [...body.children].filter((child) => {
-      const tag = child.tagName;
-      return tag !== "SCRIPT" && tag !== "STYLE";
-    });
-
-    if (elementChildren.length === 0) {
-      return true;
+  const loadThemePreference = (callback) => {
+    if (!globalThis.chrome?.storage) {
+      callback("dark");
+      return;
     }
 
-    if (elementChildren.length === 1) {
-      return ["PRE", "TEXTAREA", "CODE"].includes(elementChildren[0].tagName);
-    }
-
-    return false;
-  }
-
-  function getRawPageText(doc) {
-    const body = doc.body;
-    const onlyPre = body.children.length === 1 && body.firstElementChild?.tagName === "PRE";
-    const source = onlyPre ? body.firstElementChild.textContent : body.innerText || body.textContent;
-    return source.trim();
-  }
-
-  function renderJsonPage(detectedJson, theme) {
-    const state = {
-      mode: "pretty",
-      pretty: formatJSON(detectedJson.value),
-      raw: detectedJson.rawText,
-      value: detectedJson.value
-    };
-    const logoUrl = getExtensionAssetUrl("icons/logo.png");
-    const logoMarkup = logoUrl
-      ? `<img class="jd-menu-logo" src="${escapeHtml(logoUrl)}" alt="" aria-hidden="true">`
-      : `<span class="jd-menu-logo-fallback" aria-hidden="true">{ }</span>`;
-
-    document.documentElement.classList.add("json-debugger-active");
-    document.documentElement.dataset.jsonDebuggerTheme = theme;
-    document.body.innerHTML = `
-      <main id="${ROOT_ID}" class="jd-page">
-        <pre class="jd-output jd-pretty" data-view="pretty"></pre>
-        <div class="jd-output jd-tree" data-view="tree" hidden></div>
-        <button type="button" id="${MENU_ID}" aria-label="JSON Debugger menu" title="JSON Debugger menu">
-          ${logoMarkup}
-        </button>
-        <div id="${MENU_PANEL_ID}" hidden>
-          <button type="button" class="is-active" data-action="pretty">Pretty</button>
-          <button type="button" data-action="tree">Tree</button>
-          <button type="button" data-action="raw">Raw</button>
-          <div class="jd-menu-divider"></div>
-          <button type="button" data-action="copy">Copy</button>
-        </div>
-      </main>
-    `;
-
-    const prettyView = document.querySelector("[data-view='pretty']");
-    const treeView = document.querySelector("[data-view='tree']");
-    const menuButton = document.getElementById(MENU_ID);
-    const menuPanel = document.getElementById(MENU_PANEL_ID);
-    const modeButtons = [...menuPanel.querySelectorAll("[data-action]")];
-
-    prettyView.innerHTML = syntaxHighlightJSON(state.pretty);
-    treeView.innerHTML = renderTree(state.value);
-
-    menuButton.addEventListener("click", () => {
-      menuPanel.hidden = !menuPanel.hidden;
+    chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
+      const theme = result[THEME_STORAGE_KEY] === "light" ? "light" : "dark";
+      callback(theme);
     });
+  };
 
-    menuPanel.addEventListener("click", async (event) => {
-      const action = event.target?.dataset?.action;
-
-      if (!action) {
-        return;
-      }
-
-      if (action === "copy") {
-        await copyText(state.mode === "raw" ? state.raw : state.pretty);
-        event.target.textContent = "Copied";
-        window.setTimeout(() => {
-          event.target.textContent = "Copy";
-        }, 1200);
-        return;
-      }
-
-      if (action === "raw") {
-        state.mode = "raw";
-        prettyView.textContent = state.raw;
-        prettyView.hidden = false;
-        treeView.hidden = true;
-        updateActiveMenu(modeButtons, action);
-        menuPanel.hidden = true;
-        return;
-      }
-
-      state.mode = action;
-      prettyView.hidden = action !== "pretty";
-      treeView.hidden = action !== "tree";
-      updateActiveMenu(modeButtons, action);
-
-      if (action === "pretty") {
-        prettyView.innerHTML = syntaxHighlightJSON(state.pretty);
-      }
-
-      menuPanel.hidden = true;
-    });
-  }
-
-  function injectStyles() {
+  const injectStyles = () => {
     if (document.getElementById(STYLE_ID)) {
       return;
     }
@@ -328,6 +242,7 @@
 
       .jd-type {
         padding: 1px 6px;
+        border: 1px solid rgba(166, 173, 200, 0.2 = null);
         border: 1px solid rgba(166, 173, 200, 0.2);
         border-radius: 999px;
         color: var(--jd-muted);
@@ -445,33 +360,34 @@
     `;
 
     document.documentElement.append(style);
-  }
+  };
 
-  function loadThemePreference(callback) {
-    if (!globalThis.chrome?.storage) {
-      callback("dark");
-      return;
-    }
-
-    chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
-      const theme = result[THEME_STORAGE_KEY] === "light" ? "light" : "dark";
-      callback(theme);
-    });
-  }
-
-  function getExtensionAssetUrl(path) {
+  const getExtensionAssetUrl = (path) => {
     try {
       return globalThis.chrome?.runtime?.getURL?.(path) || "";
     } catch {
       return "";
     }
-  }
+  };
 
-  function formatJSON(value) {
+  const formatJSON = (value) => {
     return JSON.stringify(value, null, 2);
-  }
+  };
 
-  function syntaxHighlightJSON(json) {
+  const escapeHtml = (value) => {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  };
+
+  const highlightPunctuation = (value) => {
+    return escapeHtml(value).replace(/([{}[\],:])/g, '<span class="jd-punctuation">$1</span>');
+  };
+
+  const syntaxHighlightJSON = (json) => {
     const tokenPattern = /"(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?/g;
     let highlighted = "";
     let lastIndex = 0;
@@ -495,13 +411,33 @@
     });
 
     return highlighted + highlightPunctuation(json.slice(lastIndex));
-  }
+  };
 
-  function renderTree(value) {
-    return `<div class="jd-tree-root">${renderNode(value, "root", true)}</div>`;
-  }
+  const renderKey = (key, isRoot) => {
+    if (isRoot) {
+      return "";
+    }
 
-  function renderNode(value, key, isRoot = false) {
+    return `<span class="jd-label">${escapeHtml(String(key))}</span>`;
+  };
+
+  const renderLeaf = (value) => {
+    if (typeof value === "string") {
+      return `<span class="jd-type">string</span><span class="jd-value jd-string">${escapeHtml(JSON.stringify(value))}</span>`;
+    }
+
+    if (typeof value === "number") {
+      return `<span class="jd-type">number</span><span class="jd-value jd-number">${value}</span>`;
+    }
+
+    if (typeof value === "boolean") {
+      return `<span class="jd-type">boolean</span><span class="jd-value jd-boolean">${value}</span>`;
+    }
+
+    return `<span class="jd-type">null</span><span class="jd-value jd-null">null</span>`;
+  };
+
+  const renderNode = (value, key, isRoot = false) => {
     if (value === null || typeof value !== "object") {
       return `<div class="jd-tree-row">${renderKey(key, isRoot)}${isRoot ? "" : '<span class="jd-punctuation">:</span>'}${renderLeaf(value)}</div>`;
     }
@@ -518,44 +454,20 @@
         ${children}
       </details>
     `;
-  }
+  };
 
-  function renderKey(key, isRoot) {
-    if (isRoot) {
-      return "";
-    }
+  const renderTree = (value) => {
+    return `<div class="jd-tree-root">${renderNode(value, "root", true)}</div>`;
+  };
 
-    return `<span class="jd-label">${escapeHtml(String(key))}</span>`;
-  }
-
-  function renderLeaf(value) {
-    if (typeof value === "string") {
-      return `<span class="jd-type">string</span><span class="jd-value jd-string">${escapeHtml(JSON.stringify(value))}</span>`;
-    }
-
-    if (typeof value === "number") {
-      return `<span class="jd-type">number</span><span class="jd-value jd-number">${value}</span>`;
-    }
-
-    if (typeof value === "boolean") {
-      return `<span class="jd-type">boolean</span><span class="jd-value jd-boolean">${value}</span>`;
-    }
-
-    return `<span class="jd-type">null</span><span class="jd-value jd-null">null</span>`;
-  }
-
-  function updateActiveMenu(buttons, activeAction) {
+  const updateActiveMenu = (buttons, activeAction) => {
     for (const button of buttons) {
       const isMode = button.dataset.action === "pretty" || button.dataset.action === "tree" || button.dataset.action === "raw";
       button.classList.toggle("is-active", isMode && button.dataset.action === activeAction);
     }
-  }
+  };
 
-  function highlightPunctuation(value) {
-    return escapeHtml(value).replace(/([{}[\],:])/g, '<span class="jd-punctuation">$1</span>');
-  }
-
-  async function copyText(text) {
+  const copyText = async (text) => {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
       return;
@@ -569,14 +481,104 @@
     textarea.select();
     document.execCommand("copy");
     textarea.remove();
+  };
+
+  const renderJsonPage = (detectedJson, theme) => {
+    const state = {
+      mode: "pretty",
+      pretty: formatJSON(detectedJson.value),
+      raw: detectedJson.rawText,
+      value: detectedJson.value
+    };
+    const logoUrl = getExtensionAssetUrl("icons/logo.png");
+    const logoMarkup = logoUrl
+      ? `<img class="jd-menu-logo" src="${escapeHtml(logoUrl)}" alt="" aria-hidden="true">`
+      : `<span class="jd-menu-logo-fallback" aria-hidden="true">{ }</span>`;
+
+    document.documentElement.classList.add("json-debugger-active");
+    document.documentElement.dataset.jsonDebuggerTheme = theme;
+    document.body.innerHTML = `
+      <main id="${ROOT_ID}" class="jd-page">
+        <pre class="jd-output jd-pretty" data-view="pretty"></pre>
+        <div class="jd-output jd-tree" data-view="tree" hidden></div>
+        <button type="button" id="${MENU_ID}" aria-label="JSON Debugger menu" title="JSON Debugger menu">
+          ${logoMarkup}
+        </button>
+        <div id="${MENU_PANEL_ID}" hidden>
+          <button type="button" class="is-active" data-action="pretty">Pretty</button>
+          <button type="button" data-action="tree">Tree</button>
+          <button type="button" data-action="raw">Raw</button>
+          <div class="jd-menu-divider"></div>
+          <button type="button" data-action="copy">Copy</button>
+        </div>
+      </main>
+    `;
+
+    const prettyView = document.querySelector("[data-view='pretty']");
+    const treeView = document.querySelector("[data-view='tree']");
+    const menuButton = document.getElementById(MENU_ID);
+    const menuPanel = document.getElementById(MENU_PANEL_ID);
+    const modeButtons = [...menuPanel.querySelectorAll("[data-action]")];
+
+    prettyView.innerHTML = syntaxHighlightJSON(state.pretty);
+    treeView.innerHTML = renderTree(state.value);
+
+    menuButton.addEventListener("click", () => {
+      menuPanel.hidden = !menuPanel.hidden;
+    });
+
+    menuPanel.addEventListener("click", async (event) => {
+      const action = event.target?.dataset?.action;
+
+      if (!action) {
+        return;
+      }
+
+      if (action === "copy") {
+        await copyText(state.mode === "raw" ? state.raw : state.pretty);
+        event.target.textContent = "Copied";
+        window.setTimeout(() => {
+          event.target.textContent = "Copy";
+        }, 1200);
+        return;
+      }
+
+      if (action === "raw") {
+        state.mode = "raw";
+        prettyView.textContent = state.raw;
+        prettyView.hidden = false;
+        treeView.hidden = true;
+        updateActiveMenu(modeButtons, action);
+        menuPanel.hidden = true;
+        return;
+      }
+
+      state.mode = action;
+      prettyView.hidden = action !== "pretty";
+      treeView.hidden = action !== "tree";
+      updateActiveMenu(modeButtons, action);
+
+      if (action === "pretty") {
+        prettyView.innerHTML = syntaxHighlightJSON(state.pretty);
+      }
+
+      menuPanel.hidden = true;
+    });
+  };
+
+  // --- Run ---
+  if (document.getElementById(ROOT_ID)) {
+    return;
   }
 
-  function escapeHtml(value) {
-    return String(value)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+  const detected = detectJsonPage(document);
+
+  if (!detected.ok) {
+    return;
   }
+
+  loadThemePreference((theme) => {
+    injectStyles();
+    renderJsonPage(detected, theme);
+  });
 })();
