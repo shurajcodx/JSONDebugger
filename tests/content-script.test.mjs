@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const script = readFileSync(new URL("../content/json-page.js", import.meta.url), "utf8");
+const script = readFileSync(new URL("../extension/content/json-page.js", import.meta.url), "utf8");
 
 const jsonDocument = createDocument({
   contentType: "application/json",

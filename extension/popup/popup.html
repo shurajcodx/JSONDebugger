@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>JSON Forge</title>
+    <title>JSON Debugger</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
@@ -11,9 +11,12 @@
       <div class="header">
         <div class="header-left">
           <div class="logo">{ }</div>
-          <span class="title">JSON Forge</span>
+          <span class="title">JSON Debugger</span>
         </div>
-        <span class="badge neutral" id="badge">Ready</span>
+        <div class="header-actions">
+          <button type="button" class="theme-btn" id="themeButton" aria-label="Switch theme"></button>
+          <span class="badge neutral" id="badge">Ready</span>
+        </div>
       </div>
 
       <div class="url-bar" id="tabDetect" hidden>
