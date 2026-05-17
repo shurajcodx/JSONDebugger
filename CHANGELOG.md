@@ -1,23 +1,32 @@
 # Changelog
 
-All notable changes to JSON Debugger will be documented in this file.
+All notable changes to JSON Debugger are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The format is based on Keep a Changelog, and this project uses semantic versioning.
+---
 
-## [Unreleased]
-
-### Planned
-
-- Add a license before opening the repository publicly.
-- Add manual Chrome QA notes for the loaded unpacked extension.
-
-## [0.1.0] - 2026-05-16
-
-Initial release candidate.
+## [1.0.0] - 2026-05-17
 
 ### Added
 
-- Added a production review document at `docs/production-review.md`.
+- **Community Guidelines**: Created `CONTRIBUTING.md` defining code conventions, local unpack setup, and PR workflows for open-source developers.
+- **Security Reporting Standards**: Created `SECURITY.md` establishing a responsible reporting guidelines policy using GitHub Issues.
+- **Modernized Roadmap**: Created `Roadmap.md` in the project root defining the shipped v1.0.0 layer and future goals (diff, query paths, TypeScript types).
+- **Package Build Script**: Added automated build command (`npm run build`) in `package.json` to compress release artifacts into `extensions.zip` ignoring local files.
+- **MIT License**: Added official license file at root to enable public open-source publication.
+
+### Changed
+
+- **Arrow Function Modernization**: Converted all traditional function declarations inside `popup.js` and `json-page.js` to modern ES6 arrow functions (`const name = () => {}`).
+- **Active Tab Conditional UI**: Refactored the popup active-tab banner (`tabDetect`) so that it remains completely hidden initially and only shows when JSON is successfully extracted and parsed.
+- **Premium README Redesign**: Redesigned the landing document with MIT/MV3/JS badges, descriptive headers, tree directory diagrams, and installation workflows.
+- **Removed Obsolete Docs**: Cleaned the repository layout by deleting intermediate drafts and trackers (`docs/requirement.md`, `docs/prds.md`, `docs/tasks.md`, `docs/roadmap.md`, `docs/production-review.md`).
+
+---
+
+## [0.1.0] - 2026-05-16
+
+### Added
+
 - Added popup regression coverage to prevent active-tab URL refetching from returning.
 - Added Raw JSON auto-fill from the already-loaded active tab DOM.
 - Added support for reading Raw JSON from an already-formatted JSON Debugger page.
@@ -31,7 +40,6 @@ Initial release candidate.
 
 - Updated tests to point at the current `extension/` source tree.
 - Updated the popup active-tab flow so opening the popup no longer performs a credentialed duplicate network request.
-- Updated README content for pre-release, production-hardening, and open-source readiness.
 - Restored automatic JSON page detection with explicit HTTP(S) content-script matches and cheaper early exits for normal pages.
 - Changed URL Fetch to omit browser credentials by default.
 
