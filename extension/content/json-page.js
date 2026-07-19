@@ -566,6 +566,33 @@
     });
   };
 
+  // --- Network Interceptor Storage Sync ---
+  if (globalThis.chrome?.storage?.local) {
+    const storageKey = `domainJson_${location.hostname}`;
+    chrome.storage.local.remove([storageKey]);
+  }
+
+  if (typeof window !== "undefined" && window.addEventListener) {
+    window.addEventListener("message", (event) => {
+      if (event.data && event.data.type === "JSON_DEBUGGER_CAPTURED_RESPONSE") {
+        if (globalThis.chrome?.storage?.local) {
+          const storageKey = `domainJson_${location.hostname}`;
+          chrome.storage.local.get([storageKey], (res) => {
+            const list = res[storageKey] || [];
+            const req = event.data;
+            const key = `${req.method}-${req.url}-${req.rawText.slice(0, 50)}`;
+            if (!list.some(item => item._key === key)) {
+              req._key = key;
+              list.unshift(req);
+              const trimmed = list.slice(0, 15);
+              chrome.storage.local.set({ [storageKey]: trimmed });
+            }
+          });
+        }
+      }
+    });
+  }
+
   // --- Run ---
   if (document.getElementById(ROOT_ID)) {
     return;

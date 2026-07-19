@@ -19,7 +19,19 @@
       "48": "icons/icon48.png"
     }
   },
+  "devtools_page": "devtools/devtools.html",
   "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content/network-interceptor.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
     {
       "matches": [
         "http://*/*",
@@ -43,7 +55,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "icons/logo.png"
+        "icons/logo.png",
+        "content/network-interceptor.js"
       ],
       "matches": [
         "http://*/*",
