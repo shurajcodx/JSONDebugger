@@ -19,6 +19,10 @@
       "48": "icons/icon48.png"
     }
   },
+  "background": {
+    "service_worker": "background/background.js",
+    "type": "module"
+  },
   "devtools_page": "devtools/devtools.html",
   "content_scripts": [
     {
@@ -27,6 +31,18 @@
         "https://*/*"
       ],
       "js": [
+        "content/network-interceptor.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content/network-bridge.js",
         "content/json-page.js"
       ],
       "run_at": "document_idle"

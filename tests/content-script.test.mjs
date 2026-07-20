@@ -27,10 +27,92 @@ vm.runInNewContext(script, createContext(htmlDocument));
 
 assert.equal(Boolean(htmlDocument.getElementById("json-debugger-page-viewer")), false);
 
-// --- Test Non-Intrusive Network Interceptor ---
+// --- Test Non-Intrusive Network Interceptor & Bridge ---
 const interceptorScript = readFileSync(new URL("../extension/content/network-interceptor.js", import.meta.url), "utf8");
-const mockWindow = { window: {} };
-vm.runInNewContext(interceptorScript, { window: mockWindow });
+const bridgeScript = readFileSync(new URL("../extension/content/network-bridge.js", import.meta.url), "utf8");
+
+const capturedEvents = [];
+class MockCustomEvent {
+  constructor(name, options) {
+    this.type = name;
+    this.detail = options?.detail;
+  }
+}
+
+class MockResponse {
+  constructor(data, status = 200) {
+    this._data = typeof data === "string" ? data : JSON.stringify(data);
+    this.status = status;
+    this.ok = status >= 200 && status < 300;
+  }
+  clone() {
+    return this;
+  }
+  async text() {
+    return this._data;
+  }
+}
+
+const mockWindowObj = {
+  location: { origin: "https://jsonplaceholder.typicode.com" },
+  CustomEvent: MockCustomEvent,
+  fetch: async (url) => new MockResponse({ test: "fetch" }),
+  dispatchEvent: (event) => capturedEvents.push(event),
+  addEventListener: (type, handler) => {
+    mockWindowObj[`on${type}`] = handler;
+  }
+};
+
+class MockXHR {
+  open(method, url) {
+    this._jdMethod = method;
+    this._jdUrl = url;
+  }
+  send() {
+    this.status = 200;
+    this.responseText = JSON.stringify({ test: "xhr" });
+    this._loadHandler?.();
+  }
+  addEventListener(type, handler) {
+    if (type === "load") this._loadHandler = handler;
+  }
+}
+
+mockWindowObj.window = mockWindowObj;
+mockWindowObj.XMLHttpRequest = MockXHR;
+
+vm.runInNewContext(interceptorScript, mockWindowObj);
+
+// Verify fetch wrapping
+await mockWindowObj.fetch("https://jsonplaceholder.typicode.com/todos/1");
+assert.equal(capturedEvents.length, 1);
+assert.equal(capturedEvents[0].detail.data.test, "fetch");
+
+// Verify XHR wrapping
+const xhr = new mockWindowObj.XMLHttpRequest();
+xhr.open("GET", "https://jsonplaceholder.typicode.com/todos/2");
+xhr.send();
+assert.equal(capturedEvents.length, 2);
+assert.equal(capturedEvents[1].detail.data.test, "xhr");
+
+// Verify network bridge
+let sentMessage = null;
+const mockBridgeWindow = {
+  addEventListener: (type, handler) => {
+    if (type === "__JSON_DEBUGGER_CAPTURED_REQUEST__") {
+      handler(new MockCustomEvent(type, { detail: { url: "test" } }));
+    }
+  }
+};
+const mockChrome = {
+  runtime: {
+    sendMessage: async (msg) => { sentMessage = msg; }
+  }
+};
+
+vm.runInNewContext(bridgeScript, { window: mockBridgeWindow, chrome: mockChrome, globalThis: { chrome: mockChrome } });
+assert.equal(sentMessage?.type, "CAPTURED_JSON_REQUEST");
+assert.equal(sentMessage?.data?.url, "test");
 
 console.log("All content script tests passed.");
 
