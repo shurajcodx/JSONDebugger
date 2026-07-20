@@ -1,0 +1,48 @@
+name: CI & Automated Testing
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["master", "main"]
+
+jobs:
+  test:
+    name: Run Test Suite & Build Verification
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Test Suite
+        run: npm test
+
+      - name: Verify JavaScript Syntax
+        run: |
+          node --check extension/popup/popup.js
+          node --check extension/content/json-page.js
+          node --check extension/devtools/devtools.js
+          node --check extension/utilities/parser.js
+          node --check extension/utilities/formatter.js
+          node --check extension/utilities/fixer.js
+          node --check extension/utilities/analyzer.js
+          node --check extension/utilities/generator.js
+          node --check extension/utilities/differ.js
+          node --check extension/utilities/decoder.js
+          node --check extension/utilities/jsonpath.js
+
+      - name: Build & Package Verification
+        run: npm run build

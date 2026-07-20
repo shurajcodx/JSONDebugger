@@ -4,6 +4,7 @@
 [![Manifest Version: 3](https://img.shields.io/badge/Manifest-MV3-orange.svg)](extension/manifest.json)
 [![Version: 2.0.0](https://img.shields.io/badge/Version-2.0.0-purple.svg)](CHANGELOG.md)
 [![JavaScript: ES6+](https://img.shields.io/badge/JavaScript-ES6%2B-yellow.svg)](extension/popup/popup.js)
+[![CI](https://github.com/your-username/JSONDebugger/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/JSONDebugger/actions)
 [![Tests: Passing](https://img.shields.io/badge/Tests-Passing-green.svg)](tests/)
 
 JSON Debugger is a high-performance, developer-first Chrome extension designed to inspect, format, repair, generate code, diff payloads, and analyze JSON or JSON-like data locally.
