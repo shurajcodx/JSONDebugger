@@ -19,19 +19,23 @@
         </div>
       </div>
 
-      <div class="url-bar" id="tabDetect" hidden>
-        <div class="url-dot"></div>
-        <span class="url-text" id="tabDetectText">Checking active tab...</span>
+      <div class="url-bar" id="tabDetect" hidden style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;">
+        <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
+          <div class="url-dot"></div>
+          <span class="url-text" id="tabDetectText" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;">Detected JSON</span>
+        </div>
+        <select id="tabDetectSelect" style="max-width:180px;padding:3px 6px;font-size:10.5px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-background-primary);color:var(--color-text-primary);cursor:pointer;" hidden></select>
         <button type="button" class="format-btn" id="formatTabButton">Format tab</button>
       </div>
 
+      <!-- Clean 3-Tab Top Navigation -->
       <div class="tabs">
-        <div class="tab active" data-tab="raw">Raw JSON</div>
-        <div class="tab" data-tab="url">URL</div>
-        <div class="tab" data-tab="workspace">Saved Snippets</div>
+        <div class="tab active" data-tab="raw">Editor</div>
+        <div class="tab" data-tab="tools">Tools</div>
+        <div class="tab" data-tab="workspace">Saved</div>
       </div>
 
-      <!-- RAW JSON TAB -->
+      <!-- 1. EDITOR TAB (MAIN WORKSPACE) -->
       <div class="tab-panel active" id="panel-raw">
         <div class="input-section">
           <div class="input-toolbar">
@@ -49,10 +53,15 @@
         <div class="notice-box error" id="errorBox" hidden></div>
         <div class="notice-box fix" id="fixBox" hidden></div>
 
+        <!-- JSONPath Search Query Bar -->
+        <div class="url-input-wrap" style="margin: 6px 0;">
+          <input class="url-field" id="jsonPathInput" type="text" placeholder="🔍 Filter by JSONPath (e.g. $.users[0])" spellcheck="false" />
+        </div>
+
         <div class="output-section">
           <div class="output-toolbar">
             <span class="output-label">Output</span>
-            <div style="display:flex;gap:6px;align-items:center;">
+            <div style="display:flex;gap:4px;align-items:center;">
               <div class="out-seg">
                 <button type="button" class="out-seg-btn active" id="prettyModeButton">Pretty</button>
                 <button type="button" class="out-seg-btn" id="treeModeButton">Tree</button>
@@ -62,6 +71,7 @@
           </div>
           <div class="output-pre"><pre id="output"></pre></div>
         </div>
+
         <div class="stats">
           <div class="stat"><div class="stat-label">Keys</div><div class="stat-val" id="s-keys">—</div></div>
           <div class="stat"><div class="stat-label">Objects</div><div class="stat-val" id="s-obj">—</div></div>
@@ -70,50 +80,83 @@
         </div>
       </div>
 
-      <!-- URL TAB -->
-      <div class="tab-panel" id="panel-url">
-        <div class="input-section">
-          <div class="input-toolbar">
-            <span class="input-label">Fetch from URL</span>
-          </div>
-          <div class="url-input-wrap">
-            <input class="url-field" id="urlInput" type="text" placeholder="https://api.example.com/data.json" spellcheck="false" />
-            <button type="button" class="fetch-btn" id="loadUrlButton">Fetch</button>
-          </div>
-          <div class="url-hint">Try a sample endpoint:</div>
-          <div class="url-examples">
-            <span class="url-chip" data-url="https://jsonplaceholder.typicode.com/todos/1">todos/1</span>
-            <span class="url-chip" data-url="https://jsonplaceholder.typicode.com/users/1">users/1</span>
-            <span class="url-chip" data-url="https://jsonplaceholder.typicode.com/posts/1">posts/1</span>
-          </div>
+      <!-- 2. TOOLS TAB (CODE GEN, VISUAL DIFF, FETCH URL) -->
+      <div class="tab-panel" id="panel-tools">
+        <div class="sub-tabs" style="display:flex;gap:4px;margin-bottom:8px;background:var(--color-surface);padding:4px;border-radius:6px;">
+          <button type="button" class="sub-tab active" data-sub="codegen">Code Gen</button>
+          <button type="button" class="sub-tab" data-sub="diff">Visual Diff</button>
+          <button type="button" class="sub-tab" data-sub="url">Fetch URL</button>
         </div>
-        
-        <div class="notice-box error" id="urlErrorBox" hidden></div>
 
-        <div class="output-section">
-          <div class="output-toolbar">
-            <span class="output-label">Response</span>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <div class="out-seg">
-                <button type="button" class="out-seg-btn active" id="urlPrettyModeButton">Pretty</button>
-                <button type="button" class="out-seg-btn" id="urlTreeModeButton">Tree</button>
-              </div>
-              <button type="button" class="copy-btn" id="urlSaveBtn" disabled>+ Save</button>
-              <button type="button" class="copy-btn" id="urlCopyButton" disabled>Copy</button>
+        <!-- SUB 1: CODE GEN -->
+        <div class="sub-panel active" id="sub-codegen">
+          <div class="input-toolbar">
+            <span class="input-label">Target Language</span>
+            <div class="btn-row">
+              <button type="button" class="sm-btn primary" id="genTSBtn">TypeScript</button>
+              <button type="button" class="sm-btn" id="genZodBtn">Zod</button>
+              <button type="button" class="sm-btn" id="genGoBtn">Go</button>
+              <button type="button" class="sm-btn" id="genPyBtn">Python</button>
             </div>
           </div>
-          <div class="output-pre"><pre id="urlOutput">
-<span style="color:var(--color-text-tertiary);font-size:11px;">Hit Fetch or pick a sample above to load JSON from a URL.</span></pre></div>
+          <div class="output-section" style="margin-top: 8px;">
+            <div class="output-toolbar">
+              <span class="output-label" id="cgLangLabel">TypeScript Types</span>
+              <button type="button" class="copy-btn" id="cgCopyBtn">Copy Code</button>
+            </div>
+            <div class="output-pre"><pre id="cgOutput"><span style="color:var(--color-text-tertiary);font-size:11px;">Format valid JSON in Editor to generate code.</span></pre></div>
+          </div>
         </div>
-        <div class="stats">
-          <div class="stat"><div class="stat-label">Keys</div><div class="stat-val" id="u-keys">—</div></div>
-          <div class="stat"><div class="stat-label">Objects</div><div class="stat-val" id="u-obj">—</div></div>
-          <div class="stat"><div class="stat-label">Arrays</div><div class="stat-val" id="u-arr">—</div></div>
-          <div class="stat"><div class="stat-label">Status</div><div class="stat-val" id="u-status">—</div></div>
+
+        <!-- SUB 2: VISUAL DIFF -->
+        <div class="sub-panel" id="sub-diff" hidden>
+          <div class="input-section">
+            <div style="display:flex;gap:6px;">
+              <textarea id="diffInputLeft" style="height:60px;font-size:11px;" placeholder="Original JSON..."></textarea>
+              <textarea id="diffInputRight" style="height:60px;font-size:11px;" placeholder="Modified JSON..."></textarea>
+            </div>
+            <button type="button" class="sm-btn primary" id="runDiffBtn" style="margin-top:6px;width:100%;">Compare Payloads</button>
+          </div>
+          <div style="display:flex;gap:4px;margin-top:8px;">
+            <div class="output-pre" style="flex:1;"><pre id="diffLeftOut"></pre></div>
+            <div class="output-pre" style="flex:1;"><pre id="diffRightOut"></pre></div>
+          </div>
+        </div>
+
+        <!-- SUB 3: FETCH URL -->
+        <div class="sub-panel" id="sub-url" hidden>
+          <div class="input-section">
+            <div class="url-input-wrap">
+              <input class="url-field" id="urlInput" type="text" placeholder="https://api.example.com/data.json" spellcheck="false" />
+              <button type="button" class="fetch-btn" id="loadUrlButton">Fetch</button>
+            </div>
+            <div class="url-hint">Samples:</div>
+            <div class="url-examples">
+              <span class="url-chip" data-url="https://jsonplaceholder.typicode.com/todos/1">todos/1</span>
+              <span class="url-chip" data-url="https://jsonplaceholder.typicode.com/users/1">users/1</span>
+            </div>
+          </div>
+          
+          <div class="notice-box error" id="urlErrorBox" hidden></div>
+
+          <div class="output-section">
+            <div class="output-toolbar">
+              <span class="output-label">Response</span>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <div class="out-seg">
+                  <button type="button" class="out-seg-btn active" id="urlPrettyModeButton">Pretty</button>
+                  <button type="button" class="out-seg-btn" id="urlTreeModeButton">Tree</button>
+                </div>
+                <button type="button" class="copy-btn" id="urlSaveBtn" disabled>+ Save</button>
+                <button type="button" class="copy-btn" id="urlCopyButton" disabled>Copy</button>
+              </div>
+            </div>
+            <div class="output-pre"><pre id="urlOutput"><span style="color:var(--color-text-tertiary);font-size:11px;">Hit Fetch above to load JSON.</span></pre></div>
+          </div>
         </div>
       </div>
 
-      <!-- WORKSPACE TAB -->
+      <!-- 3. SAVED SNIPPETS TAB -->
       <div class="tab-panel" id="panel-workspace">
         <div class="ws-toolbar">
           <span class="ws-label">Saved snippets</span>

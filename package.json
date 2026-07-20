@@ -1,10 +1,10 @@
 {
   "name": "json-debugger-extension",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tests/core.test.mjs && node tests/content-script.test.mjs && node tests/manifest.test.mjs && node tests/popup.test.mjs",
+    "test": "node tests/core.test.mjs && node tests/content-script.test.mjs && node tests/manifest.test.mjs && node tests/popup.test.mjs && node tests/growth-suite.test.mjs",
     "build": "zip -r extensions.zip extension"
   }
 }

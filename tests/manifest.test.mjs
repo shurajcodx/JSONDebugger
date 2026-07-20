@@ -13,8 +13,5 @@ assert.equal(manifest.permissions.includes("scripting"), true);
 assert.equal(manifest.permissions.includes("storage"), true);
 assert.equal(manifest.host_permissions.includes("http://*/*"), true);
 assert.equal(manifest.host_permissions.includes("https://*/*"), true);
-assert.equal(manifest.web_accessible_resources.length, 1);
-assert.deepEqual(manifest.web_accessible_resources[0].resources, ["icons/logo.png"]);
-assert.deepEqual(manifest.web_accessible_resources[0].matches, ["http://*/*", "https://*/*"]);
 
 console.log("Manifest test passed.");

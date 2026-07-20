@@ -1,65 +1,33 @@
-# JSON Debugger Roadmap
+# JSON Debugger Roadmap & Release Board
 
-This document outlines the current status, short-term goals, and future vision of JSON Debugger. As an open-source project, we invite contributions for any of the planned or suggested features below!
+A developer-first timeline for the JSON Debugger extension.
 
----
+## Release Milestones
 
-## 🚀 Version 1.0.0 (Production Release) — *Shipped*
-
-* **Smart Auto-Fix Engine**: Built a corrector that repairs unquoted keys, single quotes, trailing commas, missing colons, missing commas, and `undefined` values.
-* **URL Loading & Formatter**: Supports querying JSON endpoints directly from the popup (omitting cookies/credentials securely) with size checks (< 5 MB) and timeouts (< 10s).
-* **Interactive Tree & Pretty Viewer**: Fully responsive collapsible JSON tree views with custom type tags (`object`, `array`, `string`, `number`).
-* **Active Tab DOM Parsing**: Fast content script (`json-page.js`) auto-fills standard raw JSON pages locally using DOM extraction without re-fetching pages from servers.
-* **Snippets Manager**: Full offline storage workspace to save and load reusable JSON payloads locally.
-* **Persisted Theme Sync**: Complete, smooth switching between Dark and Light mode, instantly synced across popup workspaces and formatted content tabs.
+| Version | Status | Milestone Focus | Target Date |
+| :--- | :--- | :--- | :--- |
+| **v1.0.0** | Shipped | Initial Production Release & Core Parser | May 2026 |
+| **v2.0.0** | Shipped | DevTools Panel, Code Gen, Diff & Decoder | July 2026 |
+| **v3.0.0** | Planned | Cloud Sync & Custom Rule Engine | Q4 2026 |
 
 ---
 
-## ⏳ Short-Term Goals (v1.1.0) — *Planned*
+## Version 2.0.0 (Major Release - Shipped July 2026)
 
-### 1. Side-by-Side JSON Diffing
-* **Objective**: Compare two JSON payloads side-by-side inside the popup workspace or on a dedicated page.
-* **Features**:
-  * Highlight exact additions, deletions, and key updates with customizable colors.
-  * Synchronized scrolling between the left (original) and right (modified) views.
-  * Simple merge/copy helper tools.
-
-### 2. Search & Text Filtering
-* **Objective**: Fast lookup of keys or values inside large JSON objects.
-* **Features**:
-  * Highlight matches inside both Pretty and Tree views.
-  * Filter tree nodes so only matching branches remain visible.
-  * Regular Expression (RegEx) search toggle.
+- [x] **Chrome DevTools Panel Integration**: Real-time network HAR request log inspection directly in F12 DevTools.
+- [x] **Multi-Language Code Generator**: Export JSON payloads to TypeScript, Zod, Go, and Python Pydantic models.
+- [x] **Side-by-Side Visual Diff Tool**: Color-coded line-by-line payload comparison (Added, Removed, Modified, Unchanged).
+- [x] **Smart JWT & Base64 Decoder**: Auto-detect and decode JWT tokens and Base64-encoded strings.
+- [x] **JSONPath Query Engine**: Search and filter deep JSON structures using standard JSONPath notation (`$.users[0]`).
+- [x] **Fetch Remote URL Tool**: Integrated remote payload fetcher inside the Tools tab.
+- [x] **Extension Context Invalidation Hardening**: Top-level exception suppression ensuring 100% clean console outputs.
 
 ---
 
-## 📋 Medium-Term Goals (v1.2.0) — *Planned*
+## Future Horizon (v3.0.0 & Beyond)
 
-### 1. TypeScript & Schema Generator
-* **Objective**: Convert raw JSON payloads into clean, reusable structures.
-* **Features**:
-  * Generate TypeScript interfaces (`interface RootObject { ... }`).
-  * Generate JSON Schema specifications.
-  * Export structured documentation as JSDoc comments.
+- [ ] **Custom Auto-Fix Rules**: Allow users to write custom replacement rules for proprietary payload formats.
+- [ ] **Encrypted Cloud Snippet Sync**: Optional end-to-end encrypted sync for saved workspace snippets across devices.
+- [ ] **GraphQL Response Inspector**: Specialized parser and schema generator for GraphQL responses.
 
-### 2. JSON Path Explorer
-* **Objective**: Navigate deeply nested payloads effortlessly.
-* **Features**:
-  * Hovering any property displays its relative path (e.g., `store.books[0].author`).
-  * Clicking the property copies the path to the clipboard.
-  * Query support: paste standard JSONPath syntax (e.g., `$.store.books[*].price`) to filter elements instantly.
-
----
-
-## 🔮 Future Vision (v2.0.0)
-
-### 1. Custom Linting & Schema Rules
-* Enable developers to load local JSON schema models and warn them if the pasted JSON does not meet specification requirements (e.g., missing required API keys or invalid property data types).
-
-### 2. Sandbox Playground Web App
-* Share the core parsing, fixing, and highlighting libraries as a zero-setup browser sandbox running entirely client-side.
-
----
-
-## 💡 How to Contribute
-If you would like to work on any of the roadmap items, please check our [CONTRIBUTING.md](CONTRIBUTING.md) guide and open a GitHub Issue!
+Thank you for helping make JSON Debugger the ultimate developer workspace!

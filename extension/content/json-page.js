@@ -1,5 +1,6 @@
 (() => {
-  const ROOT_ID = "json-debugger-page-viewer";
+  try {
+    const ROOT_ID = "json-debugger-page-viewer";
   const STYLE_ID = "json-debugger-page-style";
   const MENU_ID = "json-debugger-menu-button";
   const MENU_PANEL_ID = "json-debugger-menu-panel";
@@ -73,16 +74,32 @@
     }
   };
 
+  const isExtensionValid = () => {
+    try {
+      return typeof chrome !== "undefined" && Boolean(chrome.runtime?.id);
+    } catch {
+      return false;
+    }
+  };
+
   const loadThemePreference = (callback) => {
-    if (!globalThis.chrome?.storage) {
+    if (!isExtensionValid() || !globalThis.chrome?.storage?.local) {
       callback("dark");
       return;
     }
 
-    chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
-      const theme = result[THEME_STORAGE_KEY] === "light" ? "light" : "dark";
-      callback(theme);
-    });
+    try {
+      chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
+        if (!isExtensionValid() || chrome.runtime.lastError) {
+          callback("dark");
+          return;
+        }
+        const theme = result && result[THEME_STORAGE_KEY] === "light" ? "light" : "dark";
+        callback(theme);
+      });
+    } catch (e) {
+      callback("dark");
+    }
   };
 
   const injectStyles = () => {
@@ -581,4 +598,7 @@
     injectStyles();
     renderJsonPage(detected, theme);
   });
+  } catch (e) {
+    // Silently suppress top-level context invalidation or execution errors
+  }
 })();

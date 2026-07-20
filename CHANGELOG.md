@@ -2,7 +2,23 @@
 
 All notable changes to JSON Debugger are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
----
+## [2.0.0] - 2026-07-20
+
+### Added
+
+- **Chrome DevTools Panel Integration**: Dedicated `JSON Debugger` tab inside Developer Tools (F12) to inspect, capture, format, and search network HAR JSON requests in real-time.
+- **Multi-Language Code Generator**: Turn JSON payloads instantly into TypeScript interfaces, Zod schemas, Go structs, and Python Pydantic models with smart URL type inference.
+- **Side-by-Side Visual Diff Engine**: Compare original vs modified JSON payloads with line-by-line color-coded diff highlights (Added, Removed, Modified, Unchanged).
+- **Smart JWT & Base64 Decoder Engine**: Auto-detect and decode JWT tokens and Base64-encoded strings directly inside the inspector.
+- **JSONPath Search & Filtering Engine**: Filter complex or deeply nested JSON payloads using standard JSONPath queries (`$.users[0]`).
+- **Fetch Remote URL Tool**: Integrated remote JSON payload loader directly inside the popup Tools tab.
+- **Growth Test Suite**: Added `tests/growth-suite.test.mjs` verifying Code Generator, JSONPath, Decoder, and Visual Diff utilities.
+
+### Changed
+
+- **Extension Context Invalidation Hardening**: Top-level exception suppression and context guards preventing console noise during extension reloads.
+- **Arrow Function Standardization**: Standardized 100% of functions across all utility engines (`decoder.js`, `differ.js`, `generator.js`, `jsonpath.js`) to modern ES6 arrow functions.
+- **Non-Intrusive Network Interception**: Removed global `MAIN` world `window.fetch` monkey-patching in favor of native Chrome DevTools HAR network APIs (`chrome.devtools.network`).
 
 ## [1.0.0] - 2026-05-17
 
@@ -20,8 +36,6 @@ All notable changes to JSON Debugger are documented in this file. The format is 
 - **Active Tab Conditional UI**: Refactored the popup active-tab banner (`tabDetect`) so that it remains completely hidden initially and only shows when JSON is successfully extracted and parsed.
 - **Premium README Redesign**: Redesigned the landing document with MIT/MV3/JS badges, descriptive headers, tree directory diagrams, and installation workflows.
 - **Removed Obsolete Docs**: Cleaned the repository layout by deleting intermediate drafts and trackers (`docs/requirement.md`, `docs/prds.md`, `docs/tasks.md`, `docs/roadmap.md`, `docs/production-review.md`).
-
----
 
 ## [0.1.0] - 2026-05-16
 

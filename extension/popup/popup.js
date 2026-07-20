@@ -1,5 +1,9 @@
 import { parseInput } from "../utilities/parser.js";
 import { formatJSON, renderTree, syntaxHighlightJSON } from "../utilities/formatter.js";
+import { generateTypeScript, generateZod, generateGo, generatePython } from "../utilities/generator.js";
+import { evaluateJSONPath } from "../utilities/jsonpath.js";
+import { isJWT, decodeJWT } from "../utilities/decoder.js";
+import { diffJSON, renderDiffHTML } from "../utilities/differ.js";
 
 // --- DOM Elements ---
 // Global/Header
@@ -21,6 +25,23 @@ const clearButton = document.querySelector("#clearButton");
 const copyButton = document.querySelector("#copyButton");
 const prettyModeButton = document.querySelector("#prettyModeButton");
 const treeModeButton = document.querySelector("#treeModeButton");
+const jsonPathInput = document.querySelector("#jsonPathInput");
+
+// Code Gen Tab
+const genTSBtn = document.querySelector("#genTSBtn");
+const genZodBtn = document.querySelector("#genZodBtn");
+const genGoBtn = document.querySelector("#genGoBtn");
+const genPyBtn = document.querySelector("#genPyBtn");
+const cgOutput = document.querySelector("#cgOutput");
+const cgCopyBtn = document.querySelector("#cgCopyBtn");
+const cgLangLabel = document.querySelector("#cgLangLabel");
+
+// Diff Tab
+const diffInputLeft = document.querySelector("#diffInputLeft");
+const diffInputRight = document.querySelector("#diffInputRight");
+const runDiffBtn = document.querySelector("#runDiffBtn");
+const diffLeftOut = document.querySelector("#diffLeftOut");
+const diffRightOut = document.querySelector("#diffRightOut");
 
 // URL Tab
 const urlInput = document.querySelector("#urlInput");
@@ -65,26 +86,48 @@ const applyTheme = (theme) => {
   themeButton.title = `Switch to ${nextTheme} theme`;
 };
 
+const isExtensionValid = () => {
+  try {
+    return typeof chrome !== "undefined" && Boolean(chrome.runtime?.id);
+  } catch {
+    return false;
+  }
+};
+
 const loadThemePreference = () => {
   return new Promise((resolve) => {
-    if (!globalThis.chrome?.storage) {
-      resolve(localStorage.getItem(THEME_STORAGE_KEY) || "dark");
+    if (!isExtensionValid() || !globalThis.chrome?.storage?.local) {
+      try {
+        resolve(localStorage.getItem(THEME_STORAGE_KEY) || "dark");
+      } catch {
+        resolve("dark");
+      }
       return;
     }
 
-    chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
-      resolve(result[THEME_STORAGE_KEY] || "dark");
-    });
+    try {
+      chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
+        if (!isExtensionValid() || chrome.runtime.lastError) {
+          resolve("dark");
+          return;
+        }
+        resolve(result?.[THEME_STORAGE_KEY] || "dark");
+      });
+    } catch {
+      resolve("dark");
+    }
   });
 };
 
 const saveThemePreference = (theme) => {
-  if (!globalThis.chrome?.storage) {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  if (!isExtensionValid() || !globalThis.chrome?.storage?.local) {
+    try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch {}
     return;
   }
 
-  chrome.storage.local.set({ [THEME_STORAGE_KEY]: theme });
+  try {
+    chrome.storage.local.set({ [THEME_STORAGE_KEY]: theme });
+  } catch {}
 };
 
 const applyJsonDebuggerPageTheme = (theme) => {
@@ -117,8 +160,44 @@ const initTheme = async () => {
 };
 
 const switchTab = (tabId) => {
-  const tab = document.querySelector(`[data-tab="${tabId}"]`);
-  if (tab) tab.click();
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+  const tabEl = document.querySelector(`.tab[data-tab="${tabId}"]`);
+  const panelEl = document.getElementById(`panel-${tabId}`);
+
+  if (tabEl) tabEl.classList.add('active');
+  if (panelEl) panelEl.classList.add('active');
+
+  if (tabId === 'tools') {
+    const activeSub = document.querySelector('.sub-tab.active')?.dataset.sub || 'codegen';
+    switchSubTab(activeSub);
+  }
+};
+
+const switchSubTab = (subId) => {
+  document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.sub-panel').forEach(p => {
+    p.classList.remove('active');
+    p.hidden = true;
+  });
+
+  const btn = document.querySelector(`.sub-tab[data-sub="${subId}"]`);
+  const panel = document.getElementById(`sub-${subId}`);
+  if (btn) btn.classList.add('active');
+  if (panel) {
+    panel.classList.add('active');
+    panel.hidden = false;
+  }
+
+  if (subId === 'codegen') {
+    updateCodeGen();
+  } else if (subId === 'diff') {
+    if (diffInputLeft && !diffInputLeft.value.trim() && rawResult?.ok) {
+      diffInputLeft.value = formatJSON(rawResult.value);
+    }
+    runDiff();
+  }
 };
 
 const setBadge = (state, text) => {
@@ -166,10 +245,14 @@ const renderFixes = (result) => {
 };
 
 const updateRawStats = (stats) => {
-  document.getElementById('s-keys').textContent = stats.keys ?? stats.keys;
-  document.getElementById('s-obj').textContent = stats.objects ?? stats.objects;
-  document.getElementById('s-arr').textContent = stats.arrays ?? stats.arrays;
-  document.getElementById('s-size').textContent = stats.size;
+  const elKeys = document.getElementById('s-keys');
+  const elObj = document.getElementById('s-obj');
+  const elArr = document.getElementById('s-arr');
+  const elSize = document.getElementById('s-size');
+  if (elKeys) elKeys.textContent = stats?.keys ?? "—";
+  if (elObj) elObj.textContent = stats?.objects ?? "—";
+  if (elArr) elArr.textContent = stats?.arrays ?? "—";
+  if (elSize) elSize.textContent = stats?.size ?? "—";
 };
 
 const renderRawResult = () => {
@@ -197,6 +280,7 @@ const renderRawResult = () => {
     renderFixes(rawResult);
     updateRawStats({ ...rawResult.summary, size: new Blob([formatJSON(rawResult.value)]).size + 'B' });
     errorBox.hidden = true;
+    updateCodeGen();
     return;
   }
 
@@ -284,10 +368,14 @@ const normalizeUrl = (value) => {
 };
 
 const updateUrlStats = (stats, statusStr) => {
-  document.getElementById('u-keys').textContent = stats.keys ?? stats.keys;
-  document.getElementById('u-obj').textContent = stats.objects ?? stats.objects;
-  document.getElementById('u-arr').textContent = stats.arrays ?? stats.arrays;
-  document.getElementById('u-status').textContent = statusStr;
+  const elKeys = document.getElementById('u-keys');
+  const elObj = document.getElementById('u-obj');
+  const elArr = document.getElementById('u-arr');
+  const elStatus = document.getElementById('u-status');
+  if (elKeys) elKeys.textContent = stats?.keys ?? "—";
+  if (elObj) elObj.textContent = stats?.objects ?? "—";
+  if (elArr) elArr.textContent = stats?.arrays ?? "—";
+  if (elStatus) elStatus.textContent = statusStr ?? "—";
 };
 
 const showUrlError = (message, parseError = null) => {
@@ -350,116 +438,208 @@ const loadJsonFromUrl = async (rawUrl) => {
 const extractJsonTextFromPage = () => {
   const PAGE_VIEWER_ID = "json-debugger-page-viewer";
   const MAX_AUTO_IMPORT_CHARS = 5 * 1024 * 1024;
+  const sources = [];
 
+  if (!document.body) return { ok: false, sources: [] };
+
+  // 1. Direct RAW page JSON (if visiting a raw .json document)
   const getExistingViewerText = () => {
     const viewer = document.getElementById(PAGE_VIEWER_ID);
-    if (!viewer) {
-      return "";
-    }
-
-    const prettyView = viewer.querySelector("[data-view='pretty']");
-    return prettyView?.textContent?.trim() || "";
+    return viewer?.querySelector("[data-view='pretty']")?.textContent?.trim() || "";
   };
-
-  const isRawDocumentShape = (doc) => {
-    const elementChildren = [...doc.body.children].filter((child) => {
-      const tag = child.tagName;
-      return tag !== "SCRIPT" && tag !== "STYLE";
-    });
-
-    if (elementChildren.length === 0) {
-      return true;
-    }
-
-    if (elementChildren.length === 1) {
-      return ["PRE", "TEXTAREA", "CODE"].includes(elementChildren[0].tagName);
-    }
-
-    return false;
-  };
-
-  const getRawPageText = (doc) => {
-    const body = doc.body;
-    const onlyPre = body.children.length === 1 && body.firstElementChild?.tagName === "PRE";
-    const source = onlyPre ? body.firstElementChild.textContent : body.innerText || body.textContent || "";
-    return source.trim();
-  };
-
-  const parseDetectedText = (rawText) => {
-    if (!rawText || rawText.length > MAX_AUTO_IMPORT_CHARS) {
-      return { ok: false };
-    }
-
-    try {
-      const value = JSON.parse(rawText);
-
-      if (value === null || typeof value !== "object") {
-        return { ok: false };
-      }
-
-      return {
-        ok: true,
-        rawText
-      };
-    } catch {
-      return { ok: false };
-    }
-  };
-
-  if (!document.body) {
-    return { ok: false };
-  }
 
   const existingViewerText = getExistingViewerText();
-  if (existingViewerText) {
-    return parseDetectedText(existingViewerText);
+  let rawText = existingViewerText;
+  if (!rawText) {
+    const isRawShape = [...document.body.children].filter(c => c.tagName !== "SCRIPT" && c.tagName !== "STYLE").length <= 1;
+    const isMime = /(^|[/+])json\b/i.test(document.contentType || "");
+    if (isRawShape || isMime) {
+      const onlyPre = document.body.children.length === 1 && document.body.firstElementChild?.tagName === "PRE";
+      rawText = (onlyPre ? document.body.firstElementChild.textContent : document.body.innerText || document.body.textContent || "").trim();
+    }
   }
 
-  const contentType = document.contentType || "";
-  const likelyJsonMime = /(^|[/+])json\b/i.test(contentType);
-  const rawDocumentShape = isRawDocumentShape(document);
-
-  if (!likelyJsonMime && !rawDocumentShape) {
-    return { ok: false };
+  if (rawText && rawText.length <= MAX_AUTO_IMPORT_CHARS && /^[\s\n\r]*[{[]/.test(rawText)) {
+    try {
+      const val = JSON.parse(rawText);
+      if (val && typeof val === "object") {
+        sources.push({
+          label: "Page JSON",
+          rawText
+        });
+      }
+    } catch {}
   }
 
-  const rawText = getRawPageText(document);
+  // 2. Embedded Framework State JSON (__NEXT_DATA__, __NUXT__, application/json scripts)
+  const scriptElements = document.querySelectorAll('script[type="application/json"], script[id="__NEXT_DATA__"], script[id="__NUXT__"]');
+  scriptElements.forEach(script => {
+    const text = script.textContent?.trim();
+    if (text && text.length <= MAX_AUTO_IMPORT_CHARS && /^[\s\n\r]*[{[]/.test(text)) {
+      try {
+        const val = JSON.parse(text);
+        if (val && typeof val === "object") {
+          const label = script.id ? script.id : "Embedded State";
+          sources.push({
+            label,
+            rawText: text
+          });
+        }
+      } catch {}
+    }
+  });
 
-  if (!rawText || rawText.length > MAX_AUTO_IMPORT_CHARS) {
-    return { ok: false };
+  // 3. API Network Resource URLs from Performance API
+  if (window.performance && performance.getEntriesByType) {
+    const resources = performance.getEntriesByType("resource") || [];
+    resources.forEach(res => {
+      const name = res.name;
+      if (name && (name.endsWith(".json") || /\/(api|v\d+)\//i.test(name))) {
+        try {
+          const urlObj = new URL(name);
+          const parts = urlObj.pathname.split("/").filter(Boolean);
+          const shortLabel = parts.length > 0 ? "/" + parts.slice(-2).join("/") : urlObj.pathname;
+          sources.push({
+            label: shortLabel,
+            url: name,
+            isFetchUrl: true
+          });
+        } catch {}
+      }
+    });
   }
 
-  const likelyJsonText = /^[\s\n\r]*[{[]/.test(rawText);
-
-  if (!likelyJsonMime && !likelyJsonText) {
-    return { ok: false };
+  // Deduplicate sources by label/url
+  const uniqueSources = [];
+  const seenKeys = new Set();
+  for (const s of sources) {
+    const key = s.url || s.label;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueSources.push(s);
+    }
   }
 
-  return parseDetectedText(rawText);
+  return {
+    ok: uniqueSources.length > 0,
+    sources: uniqueSources
+  };
 };
 
 const importActiveTabJson = async (tab) => {
-  if (!globalThis.chrome?.scripting || !tab?.id) return;
+  if (!tab?.id) return;
 
-  try {
-    const [injection] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: extractJsonTextFromPage
-    });
-    const detected = injection?.result;
+  const tabDetectChips = document.querySelector("#tabDetectChips");
+  const sources = [];
 
-    if (!detected?.ok) {
-      tabDetect.hidden = true;
-      return;
+  // A. Check chrome.storage.local for captured network JSON requests for this active tab/domain
+  if (globalThis.chrome?.storage?.local) {
+    try {
+      const storageKey = `recentTabJson_${tab.id}`;
+      const res = await new Promise(r => chrome.storage.local.get([storageKey], r));
+      const captured = res[storageKey];
+      if (Array.isArray(captured)) {
+        captured.forEach(req => {
+          let label = req.url;
+          try {
+            const urlObj = new URL(req.url);
+            label = `${req.method} ${urlObj.pathname.split('/').filter(Boolean).slice(-2).join('/') || '/'}`;
+          } catch {}
+          sources.push({
+            label,
+            rawText: req.rawText || JSON.stringify(req.data, null, 2)
+          });
+        });
+      }
+
+      if (tab.url) {
+        const hostname = new URL(tab.url).hostname;
+        const domainKey = `domainJson_${hostname}`;
+        const resDomain = await new Promise(r => chrome.storage.local.get([domainKey], r));
+        const capturedDomain = resDomain[domainKey];
+        if (Array.isArray(capturedDomain)) {
+          capturedDomain.forEach(req => {
+            let label = req.url;
+            try {
+              const urlObj = new URL(req.url);
+              label = `${req.method} ${urlObj.pathname.split('/').filter(Boolean).slice(-2).join('/') || '/'}`;
+            } catch {}
+            sources.push({
+              label,
+              rawText: req.rawText
+            });
+          });
+        }
+      }
+    } catch {}
+  }
+
+  // B. Check active tab DOM via scripting
+  if (globalThis.chrome?.scripting && /^https?:\/\//i.test(tab.url || "")) {
+    try {
+      const [injection] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: extractJsonTextFromPage
+      });
+      const detected = injection?.result;
+      if (detected?.sources && Array.isArray(detected.sources)) {
+        detected.sources.forEach(s => sources.push(s));
+      }
+    } catch {}
+  }
+
+  // Deduplicate sources
+  const uniqueSources = [];
+  const seenKeys = new Set();
+  for (const s of sources) {
+    const key = s.rawText ? s.rawText.slice(0, 100) : (s.url || s.label);
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueSources.push(s);
     }
+  }
 
-    input.value = detected.rawText;
-    renderRawResult();
-    tabDetect.hidden = false;
-    tabDetectText.textContent = `Loaded JSON from ${new URL(tab.url).hostname}`;
-  } catch {
-    // Some pages block script injection; the manual formatter button still handles eligible tabs.
+  if (uniqueSources.length === 0) {
     tabDetect.hidden = true;
+    return;
+  }
+
+  tabDetect.hidden = false;
+
+  const loadSource = async (source) => {
+    if (source.rawText) {
+      input.value = source.rawText;
+      renderRawResult();
+    } else if (source.isFetchUrl && source.url) {
+      await loadJsonFromUrl(source.url);
+      if (urlResult?.ok) {
+        input.value = formatJSON(urlResult.value);
+        renderRawResult();
+      }
+    }
+  };
+
+  const tabDetectSelect = document.querySelector("#tabDetectSelect");
+
+  if (uniqueSources.length === 1) {
+    tabDetectText.textContent = `Loaded ${uniqueSources[0].label}`;
+    if (tabDetectSelect) tabDetectSelect.hidden = true;
+    await loadSource(uniqueSources[0]);
+  } else {
+    tabDetectText.textContent = `Detected (${uniqueSources.length})`;
+    if (tabDetectSelect) {
+      tabDetectSelect.hidden = false;
+      tabDetectSelect.innerHTML = uniqueSources.map((s, idx) => `
+        <option value="${idx}">${escapeHtml(s.label)}</option>
+      `).join("");
+
+      tabDetectSelect.onchange = () => {
+        const s = uniqueSources[+tabDetectSelect.value];
+        if (s) loadSource(s);
+      };
+    }
+    // Default auto-load the first source
+    await loadSource(uniqueSources[0]);
   }
 };
 
@@ -487,7 +667,7 @@ const prepareActiveTabFormatting = async () => {
 
 const loadWorkspaceSnippets = () => {
   return new Promise((resolve) => {
-    if (!globalThis.chrome?.storage) {
+    if (!isExtensionValid() || !globalThis.chrome?.storage?.local) {
       try {
         resolve(JSON.parse(localStorage.getItem('jsonSnippets') || '[]'));
       } catch {
@@ -495,18 +675,28 @@ const loadWorkspaceSnippets = () => {
       }
       return;
     }
-    chrome.storage.local.get(['jsonSnippets'], (result) => {
-      resolve(result.jsonSnippets || []);
-    });
+    try {
+      chrome.storage.local.get(['jsonSnippets'], (result) => {
+        if (!isExtensionValid() || chrome.runtime.lastError) {
+          resolve([]);
+          return;
+        }
+        resolve(result?.jsonSnippets || []);
+      });
+    } catch {
+      resolve([]);
+    }
   });
 };
 
 const saveWorkspaceSnippets = (snippets) => {
-  if (!globalThis.chrome?.storage) {
-    localStorage.setItem('jsonSnippets', JSON.stringify(snippets));
+  if (!isExtensionValid() || !globalThis.chrome?.storage?.local) {
+    try { localStorage.setItem('jsonSnippets', JSON.stringify(snippets)); } catch {}
     return;
   }
-  chrome.storage.local.set({ jsonSnippets: snippets });
+  try {
+    chrome.storage.local.set({ jsonSnippets: snippets });
+  } catch {}
 };
 
 const renderWorkspace = async () => {
@@ -551,10 +741,13 @@ themeButton.addEventListener("click", () => {
 
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+    switchTab(tab.dataset.tab);
+  });
+});
+
+document.querySelectorAll('.sub-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    switchSubTab(btn.dataset.sub);
   });
 });
 
@@ -681,6 +874,109 @@ wsNewBtn.addEventListener("click", () => {
   switchTab('raw');
   renderRawResult();
 });
+
+// --- JSONPath Debounced Filter (150ms) ---
+let jsonPathTimeout = null;
+if (jsonPathInput) {
+  jsonPathInput.addEventListener("input", () => {
+    clearTimeout(jsonPathTimeout);
+    jsonPathTimeout = setTimeout(() => {
+      if (!rawResult?.ok) return;
+      const query = jsonPathInput.value.trim();
+      if (!query) {
+        renderOutput(output, rawResult.value, rawOutputMode);
+        return;
+      }
+      const filtered = evaluateJSONPath(rawResult.value, query);
+      if (filtered !== undefined) {
+        renderOutput(output, filtered, rawOutputMode);
+      } else {
+        output.innerHTML = `<span style="color:var(--color-danger);font-size:11px;">No match found for path: ${escapeHtml(query)}</span>`;
+      }
+    }, 150);
+  });
+}
+
+// --- Code Generator Handlers ---
+let currentGenLang = "ts";
+function updateCodeGen() {
+  if (!rawResult?.ok) {
+    cgOutput.innerHTML = `<span style="color:var(--color-text-tertiary);font-size:11px;">Format a valid JSON in the Raw tab to generate code.</span>`;
+    return;
+  }
+  const val = rawResult.value;
+  const urlContext = activeTabUrl || (urlInput ? urlInput.value : "");
+  let code = "";
+  if (currentGenLang === "ts") {
+    cgLangLabel.textContent = "TypeScript Interfaces";
+    code = generateTypeScript(val, "Response", urlContext);
+  } else if (currentGenLang === "zod") {
+    cgLangLabel.textContent = "Zod Schema";
+    code = generateZod(val, "responseSchema", urlContext);
+  } else if (currentGenLang === "go") {
+    cgLangLabel.textContent = "Go Structs";
+    code = generateGo(val, "Response", urlContext);
+  } else if (currentGenLang === "py") {
+    cgLangLabel.textContent = "Python Pydantic Models";
+    code = generatePython(val, "ResponseModel", urlContext);
+  }
+  cgOutput.textContent = code;
+}
+
+const langBtns = [genTSBtn, genZodBtn, genGoBtn, genPyBtn];
+function setLangBtnActive(targetBtn) {
+  langBtns.forEach(btn => {
+    if (btn) {
+      if (btn === targetBtn) {
+        btn.classList.add("primary");
+      } else {
+        btn.classList.remove("primary");
+      }
+    }
+  });
+}
+
+if (genTSBtn) {
+  genTSBtn.onclick = () => { currentGenLang = "ts"; setLangBtnActive(genTSBtn); updateCodeGen(); };
+  genZodBtn.onclick = () => { currentGenLang = "zod"; setLangBtnActive(genZodBtn); updateCodeGen(); };
+  genGoBtn.onclick = () => { currentGenLang = "go"; setLangBtnActive(genGoBtn); updateCodeGen(); };
+  genPyBtn.onclick = () => { currentGenLang = "py"; setLangBtnActive(genPyBtn); updateCodeGen(); };
+  cgCopyBtn.onclick = async () => {
+    await navigator.clipboard.writeText(cgOutput.textContent);
+    const old = cgCopyBtn.textContent;
+    cgCopyBtn.textContent = "Copied!";
+    setTimeout(() => cgCopyBtn.textContent = old, 1500);
+  };
+}
+
+// --- Visual Diff Handler ---
+function runDiff() {
+  const leftStr = diffInputLeft ? diffInputLeft.value.trim() : "";
+  const rightStr = diffInputRight ? diffInputRight.value.trim() : "";
+  
+  if (!leftStr && !rightStr) {
+    if (diffLeftOut) diffLeftOut.innerHTML = `<span style="color:var(--color-text-tertiary);font-size:11px;">Paste original JSON...</span>`;
+    if (diffRightOut) diffRightOut.innerHTML = `<span style="color:var(--color-text-tertiary);font-size:11px;">Paste modified JSON...</span>`;
+    return;
+  }
+
+  try {
+    const leftObj = leftStr ? JSON.parse(leftStr) : {};
+    const rightObj = rightStr ? JSON.parse(rightStr) : {};
+    const diffs = diffJSON(leftObj, rightObj);
+    const { leftHTML, rightHTML } = renderDiffHTML(diffs);
+    if (diffLeftOut) diffLeftOut.innerHTML = leftHTML;
+    if (diffRightOut) diffRightOut.innerHTML = rightHTML;
+  } catch (err) {
+    if (diffLeftOut) diffLeftOut.innerHTML = `<span style="color:var(--color-danger);font-size:11px;">Invalid JSON in inputs</span>`;
+  }
+}
+
+if (runDiffBtn) {
+  runDiffBtn.onclick = runDiff;
+}
+if (diffInputLeft) diffInputLeft.addEventListener("input", runDiff);
+if (diffInputRight) diffInputRight.addEventListener("input", runDiff);
 
 // --- Run ---
 prepareActiveTabFormatting();

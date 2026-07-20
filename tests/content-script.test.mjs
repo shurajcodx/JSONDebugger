@@ -27,6 +27,11 @@ vm.runInNewContext(script, createContext(htmlDocument));
 
 assert.equal(Boolean(htmlDocument.getElementById("json-debugger-page-viewer")), false);
 
+// --- Test Non-Intrusive Network Interceptor ---
+const interceptorScript = readFileSync(new URL("../extension/content/network-interceptor.js", import.meta.url), "utf8");
+const mockWindow = { window: {} };
+vm.runInNewContext(interceptorScript, { window: mockWindow });
+
 console.log("All content script tests passed.");
 
 function createContext(document) {
