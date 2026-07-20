@@ -86,26 +86,48 @@ const applyTheme = (theme) => {
   themeButton.title = `Switch to ${nextTheme} theme`;
 };
 
+const isExtensionValid = () => {
+  try {
+    return typeof chrome !== "undefined" && Boolean(chrome.runtime?.id);
+  } catch {
+    return false;
+  }
+};
+
 const loadThemePreference = () => {
   return new Promise((resolve) => {
-    if (!globalThis.chrome?.storage) {
-      resolve(localStorage.getItem(THEME_STORAGE_KEY) || "dark");
+    if (!isExtensionValid() || !globalThis.chrome?.storage?.local) {
+      try {
+        resolve(localStorage.getItem(THEME_STORAGE_KEY) || "dark");
+      } catch {
+        resolve("dark");
+      }
       return;
     }
 
-    chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
-      resolve(result[THEME_STORAGE_KEY] || "dark");
-    });
+    try {
+      chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
+        if (!isExtensionValid() || chrome.runtime.lastError) {
+          resolve("dark");
+          return;
+        }
+        resolve(result?.[THEME_STORAGE_KEY] || "dark");
+      });
+    } catch {
+      resolve("dark");
+    }
   });
 };
 
 const saveThemePreference = (theme) => {
-  if (!globalThis.chrome?.storage) {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  if (!isExtensionValid() || !globalThis.chrome?.storage?.local) {
+    try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch {}
     return;
   }
 
-  chrome.storage.local.set({ [THEME_STORAGE_KEY]: theme });
+  try {
+    chrome.storage.local.set({ [THEME_STORAGE_KEY]: theme });
+  } catch {}
 };
 
 const applyJsonDebuggerPageTheme = (theme) => {
@@ -223,10 +245,14 @@ const renderFixes = (result) => {
 };
 
 const updateRawStats = (stats) => {
-  document.getElementById('s-keys').textContent = stats.keys ?? stats.keys;
-  document.getElementById('s-obj').textContent = stats.objects ?? stats.objects;
-  document.getElementById('s-arr').textContent = stats.arrays ?? stats.arrays;
-  document.getElementById('s-size').textContent = stats.size;
+  const elKeys = document.getElementById('s-keys');
+  const elObj = document.getElementById('s-obj');
+  const elArr = document.getElementById('s-arr');
+  const elSize = document.getElementById('s-size');
+  if (elKeys) elKeys.textContent = stats?.keys ?? "—";
+  if (elObj) elObj.textContent = stats?.objects ?? "—";
+  if (elArr) elArr.textContent = stats?.arrays ?? "—";
+  if (elSize) elSize.textContent = stats?.size ?? "—";
 };
 
 const renderRawResult = () => {
@@ -342,10 +368,14 @@ const normalizeUrl = (value) => {
 };
 
 const updateUrlStats = (stats, statusStr) => {
-  document.getElementById('u-keys').textContent = stats.keys ?? stats.keys;
-  document.getElementById('u-obj').textContent = stats.objects ?? stats.objects;
-  document.getElementById('u-arr').textContent = stats.arrays ?? stats.arrays;
-  document.getElementById('u-status').textContent = statusStr;
+  const elKeys = document.getElementById('u-keys');
+  const elObj = document.getElementById('u-obj');
+  const elArr = document.getElementById('u-arr');
+  const elStatus = document.getElementById('u-status');
+  if (elKeys) elKeys.textContent = stats?.keys ?? "—";
+  if (elObj) elObj.textContent = stats?.objects ?? "—";
+  if (elArr) elArr.textContent = stats?.arrays ?? "—";
+  if (elStatus) elStatus.textContent = statusStr ?? "—";
 };
 
 const showUrlError = (message, parseError = null) => {
@@ -637,7 +667,7 @@ const prepareActiveTabFormatting = async () => {
 
 const loadWorkspaceSnippets = () => {
   return new Promise((resolve) => {
-    if (!globalThis.chrome?.storage) {
+    if (!isExtensionValid() || !globalThis.chrome?.storage?.local) {
       try {
         resolve(JSON.parse(localStorage.getItem('jsonSnippets') || '[]'));
       } catch {
@@ -645,18 +675,28 @@ const loadWorkspaceSnippets = () => {
       }
       return;
     }
-    chrome.storage.local.get(['jsonSnippets'], (result) => {
-      resolve(result.jsonSnippets || []);
-    });
+    try {
+      chrome.storage.local.get(['jsonSnippets'], (result) => {
+        if (!isExtensionValid() || chrome.runtime.lastError) {
+          resolve([]);
+          return;
+        }
+        resolve(result?.jsonSnippets || []);
+      });
+    } catch {
+      resolve([]);
+    }
   });
 };
 
 const saveWorkspaceSnippets = (snippets) => {
-  if (!globalThis.chrome?.storage) {
-    localStorage.setItem('jsonSnippets', JSON.stringify(snippets));
+  if (!isExtensionValid() || !globalThis.chrome?.storage?.local) {
+    try { localStorage.setItem('jsonSnippets', JSON.stringify(snippets)); } catch {}
     return;
   }
-  chrome.storage.local.set({ jsonSnippets: snippets });
+  try {
+    chrome.storage.local.set({ jsonSnippets: snippets });
+  } catch {}
 };
 
 const renderWorkspace = async () => {

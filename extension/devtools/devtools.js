@@ -19,6 +19,7 @@ function processHarEntry(entry) {
   const url = req.url;
 
   if (!url || url.startsWith("chrome-extension://") || url.startsWith("data:")) return;
+  if (res.status && (res.status < 200 || res.status >= 300)) return;
 
   const handleText = (rawBody, encoding) => {
     if (!rawBody || typeof rawBody !== "string") return;

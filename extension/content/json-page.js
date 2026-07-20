@@ -1,5 +1,6 @@
 (() => {
-  const ROOT_ID = "json-debugger-page-viewer";
+  try {
+    const ROOT_ID = "json-debugger-page-viewer";
   const STYLE_ID = "json-debugger-page-style";
   const MENU_ID = "json-debugger-menu-button";
   const MENU_PANEL_ID = "json-debugger-menu-panel";
@@ -73,16 +74,32 @@
     }
   };
 
+  const isExtensionValid = () => {
+    try {
+      return typeof chrome !== "undefined" && Boolean(chrome.runtime?.id);
+    } catch {
+      return false;
+    }
+  };
+
   const loadThemePreference = (callback) => {
-    if (!globalThis.chrome?.storage) {
+    if (!isExtensionValid() || !globalThis.chrome?.storage?.local) {
       callback("dark");
       return;
     }
 
-    chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
-      const theme = result[THEME_STORAGE_KEY] === "light" ? "light" : "dark";
-      callback(theme);
-    });
+    try {
+      chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
+        if (!isExtensionValid() || chrome.runtime.lastError) {
+          callback("dark");
+          return;
+        }
+        const theme = result && result[THEME_STORAGE_KEY] === "light" ? "light" : "dark";
+        callback(theme);
+      });
+    } catch (e) {
+      callback("dark");
+    }
   };
 
   const injectStyles = () => {
@@ -566,33 +583,6 @@
     });
   };
 
-  // --- Network Interceptor Storage Sync ---
-  if (globalThis.chrome?.storage?.local) {
-    const storageKey = `domainJson_${location.hostname}`;
-    chrome.storage.local.remove([storageKey]);
-  }
-
-  if (typeof window !== "undefined" && window.addEventListener) {
-    window.addEventListener("message", (event) => {
-      if (event.data && event.data.type === "JSON_DEBUGGER_CAPTURED_RESPONSE") {
-        if (globalThis.chrome?.storage?.local) {
-          const storageKey = `domainJson_${location.hostname}`;
-          chrome.storage.local.get([storageKey], (res) => {
-            const list = res[storageKey] || [];
-            const req = event.data;
-            const key = `${req.method}-${req.url}-${req.rawText.slice(0, 50)}`;
-            if (!list.some(item => item._key === key)) {
-              req._key = key;
-              list.unshift(req);
-              const trimmed = list.slice(0, 15);
-              chrome.storage.local.set({ [storageKey]: trimmed });
-            }
-          });
-        }
-      }
-    });
-  }
-
   // --- Run ---
   if (document.getElementById(ROOT_ID)) {
     return;
@@ -608,4 +598,7 @@
     injectStyles();
     renderJsonPage(detected, theme);
   });
+  } catch (e) {
+    // Silently suppress top-level context invalidation or execution errors
+  }
 })();
