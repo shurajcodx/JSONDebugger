@@ -2,8 +2,6 @@
 
 All notable changes to JSON Debugger are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
----
-
 ## [1.0.0] - 2026-05-17
 
 ### Added
@@ -20,8 +18,6 @@ All notable changes to JSON Debugger are documented in this file. The format is 
 - **Active Tab Conditional UI**: Refactored the popup active-tab banner (`tabDetect`) so that it remains completely hidden initially and only shows when JSON is successfully extracted and parsed.
 - **Premium README Redesign**: Redesigned the landing document with MIT/MV3/JS badges, descriptive headers, tree directory diagrams, and installation workflows.
 - **Removed Obsolete Docs**: Cleaned the repository layout by deleting intermediate drafts and trackers (`docs/requirement.md`, `docs/prds.md`, `docs/tasks.md`, `docs/roadmap.md`, `docs/production-review.md`).
-
----
 
 ## [0.1.0] - 2026-05-16
 
