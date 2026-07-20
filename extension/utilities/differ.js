@@ -3,10 +3,10 @@
  * Compares two JSON objects key-by-key and generates structured diff highlights.
  */
 
-function diffJSON(obj1, obj2) {
+const diffJSON = (obj1, obj2) => {
   const result = [];
 
-  function compare(a, b, path = "$") {
+  const compare = (a, b, path = "$") => {
     if (a === b) {
       result.push({ status: "unchanged", path, left: a, right: b });
       return;
@@ -46,13 +46,13 @@ function diffJSON(obj1, obj2) {
         compare(a[key], b[key], itemPath);
       }
     }
-  }
+  };
 
   compare(obj1, obj2);
   return result;
-}
+};
 
-function renderDiffHTML(diffItems) {
+const renderDiffHTML = (diffItems) => {
   let leftLines = [];
   let rightLines = [];
 
@@ -71,16 +71,16 @@ function renderDiffHTML(diffItems) {
     leftHTML: leftLines.join(""),
     rightHTML: rightLines.join("")
   };
-}
+};
 
-function escapeHtml(value) {
+const escapeHtml = (value) => {
   return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
+};
 
 export {
   diffJSON,

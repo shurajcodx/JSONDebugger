@@ -3,7 +3,7 @@
  * Converts JS objects/JSON into TypeScript interfaces, Zod schemas, Go structs, and Python Pydantic models.
  */
 
-function singularize(word) {
+const singularize = (word) => {
   if (!word) return "Item";
   let str = word.trim();
   if (str.endsWith("ies") && str.length > 3) {
@@ -14,26 +14,26 @@ function singularize(word) {
     str = str.slice(0, -1);
   }
   return capitalize(str);
-}
+};
 
-function capitalize(str) {
+const capitalize = (str) => {
   if (!str) return "Item";
   const clean = str.replace(/[^a-zA-Z0-9]/g, "");
   if (!clean) return "Item";
   return clean.charAt(0).toUpperCase() + clean.slice(1);
-}
+};
 
-function toValidVarName(key) {
+const toValidVarName = (key) => {
   let clean = key.replace(/[^a-zA-Z0-9_]/g, "_");
   if (/^[0-9]/.test(clean)) clean = "_" + clean;
   return clean || "key";
-}
+};
 
 /**
  * Infer root type name from a URL or fallback
  * e.g., https://api.com/v1/users/123 -> User
  */
-function inferRootName(rawUrl, defaultName = "Response") {
+const inferRootName = (rawUrl, defaultName = "Response") => {
   if (!rawUrl || typeof rawUrl !== "string") return capitalize(defaultName);
   try {
     const url = new URL(rawUrl.trim());
@@ -44,16 +44,16 @@ function inferRootName(rawUrl, defaultName = "Response") {
     }
   } catch (e) {}
   return capitalize(defaultName);
-}
+};
 
 /**
  * Generate TypeScript Interfaces
  */
-function generateTypeScript(data, rawRootName = "Response", sourceUrl = "") {
+const generateTypeScript = (data, rawRootName = "Response", sourceUrl = "") => {
   const rootName = sourceUrl ? inferRootName(sourceUrl, rawRootName) : capitalize(rawRootName);
   const interfaces = new Map();
 
-  function walk(val, name, parentName = "") {
+  const walk = (val, name, parentName = "") => {
     if (val === null || val === undefined) return "any";
     if (typeof val === "boolean") return "boolean";
     if (typeof val === "number") return "number";
@@ -88,7 +88,7 @@ function generateTypeScript(data, rawRootName = "Response", sourceUrl = "") {
     }
 
     return "any";
-  }
+  };
 
   const rootType = walk(data, rootName);
 
@@ -101,15 +101,15 @@ function generateTypeScript(data, rawRootName = "Response", sourceUrl = "") {
     result.push(interfaceCode);
   }
   return result.reverse().join("\n\n");
-}
+};
 
 /**
  * Generate Zod Schema
  */
-function generateZod(data, rawRootName = "responseSchema", sourceUrl = "") {
+const generateZod = (data, rawRootName = "responseSchema", sourceUrl = "") => {
   const rootName = sourceUrl ? inferRootName(sourceUrl, rawRootName).toLowerCase() + "Schema" : toValidVarName(rawRootName);
 
-  function walk(val) {
+  const walk = (val) => {
     if (val === null || val === undefined) return "z.any()";
     if (typeof val === "boolean") return "z.boolean()";
     if (typeof val === "number") return "z.number()";
@@ -132,20 +132,20 @@ function generateZod(data, rawRootName = "responseSchema", sourceUrl = "") {
     }
 
     return "z.any()";
-  }
+  };
 
   const zodBody = walk(data);
   return `import { z } from "zod";\n\nexport const ${rootName} = ${zodBody};`;
-}
+};
 
 /**
  * Generate Go Structs
  */
-function generateGo(data, rawRootName = "Response", sourceUrl = "") {
+const generateGo = (data, rawRootName = "Response", sourceUrl = "") => {
   const rootName = sourceUrl ? inferRootName(sourceUrl, rawRootName) : capitalize(rawRootName);
   const structs = new Map();
 
-  function walk(val, name, parentName = "") {
+  const walk = (val, name, parentName = "") => {
     if (val === null || val === undefined) return "interface{}";
     if (typeof val === "boolean") return "bool";
     if (typeof val === "number") return Number.isInteger(val) ? "int" : "float64";
@@ -176,7 +176,7 @@ function generateGo(data, rawRootName = "Response", sourceUrl = "") {
     }
 
     return "interface{}";
-  }
+  };
 
   walk(data, rootName);
   const result = [];
@@ -184,16 +184,16 @@ function generateGo(data, rawRootName = "Response", sourceUrl = "") {
     result.push(code);
   }
   return result.reverse().join("\n\n");
-}
+};
 
 /**
  * Generate Python Pydantic Models
  */
-function generatePython(data, rawRootName = "ResponseModel", sourceUrl = "") {
+const generatePython = (data, rawRootName = "ResponseModel", sourceUrl = "") => {
   const rootName = sourceUrl ? inferRootName(sourceUrl, rawRootName) + "Model" : capitalize(rawRootName);
   const models = new Map();
 
-  function walk(val, name, parentName = "") {
+  const walk = (val, name, parentName = "") => {
     if (val === null || val === undefined) return "Optional[Any]";
     if (typeof val === "boolean") return "bool";
     if (typeof val === "number") return Number.isInteger(val) ? "int" : "float";
@@ -224,7 +224,7 @@ function generatePython(data, rawRootName = "ResponseModel", sourceUrl = "") {
     }
 
     return "Any";
-  }
+  };
 
   walk(data, rootName);
   const result = ["from typing import List, Optional, Any\nfrom pydantic import BaseModel\n"];
@@ -232,7 +232,7 @@ function generatePython(data, rawRootName = "ResponseModel", sourceUrl = "") {
     result.push(code);
   }
   return result.reverse().join("\n\n");
-}
+};
 
 export {
   singularize,

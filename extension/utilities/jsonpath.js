@@ -6,7 +6,7 @@
  * Evaluate simple dot/bracket notation path against an object
  * Supports: $.a.b[0].c, a.b.c, a[0].b
  */
-function evaluateJSONPath(data, queryStr) {
+const evaluateJSONPath = (data, queryStr) => {
   if (!queryStr || !queryStr.trim()) return data;
 
   let path = queryStr.trim();
@@ -31,14 +31,14 @@ function evaluateJSONPath(data, queryStr) {
   }
 
   return curr;
-}
+};
 
 /**
  * Construct dot/bracket notation JSON path from a key sequence
  */
-function buildJSONPath(segments) {
+const buildJSONPath = (segments) => {
   if (!segments || segments.length === 0) return "$";
-  
+
   let result = "$";
   for (const seg of segments) {
     if (typeof seg === "number" || /^\d+$/.test(seg)) {
@@ -50,7 +50,7 @@ function buildJSONPath(segments) {
     }
   }
   return result;
-}
+};
 
 export {
   evaluateJSONPath,
