@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "JSON Debugger",
   "short_name": "JSON Debugger",
-  "description": "Parse, fix, format, and understand JSON-like data instantly.",
-  "version": "1.0.0",
+  "description": "Parse, fix, format, generate code, diff, and inspect JSON-like data instantly.",
+  "version": "2.0.0",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
