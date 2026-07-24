@@ -2,6 +2,14 @@
 
 All notable changes to JSON Debugger are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-07-24
+
+### Added
+
+- **Background Network Request Interceptor**: Automatic `fetch()` and `XMLHttpRequest` JSON request detection in `MAIN` world context—captures background API calls automatically without needing DevTools open.
+- **Onboarding Welcome Page**: Interactive onboarding experience (`pages/welcome.html`) shown on initial installation with feature overview, toolbar pinning instructions, and instant demo test link.
+- **Uninstall Feedback Form**: Automated redirect (`chrome.runtime.setUninstallURL`) to Google Form on extension removal to collect user feedback and improvement suggestions.
+
 ## [2.0.0] - 2026-07-20
 
 ### Added
