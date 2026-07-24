@@ -1,6 +1,29 @@
 // background.js - Background service worker for managing JSONDebugger background network requests
 
 const MAX_STORED_REQUESTS = 20;
+const UNINSTALL_FEEDBACK_URL = "https://docs.google.com/forms/d/e/1FAIpQLSeptij_MzKS8HR4KtcY7xGre2tK3DSRDmJ86pZsxw6XGVzmAQ/viewform?usp=publish-editor";
+
+if (globalThis.chrome?.runtime?.setUninstallURL) {
+  try {
+    chrome.runtime.setUninstallURL(UNINSTALL_FEEDBACK_URL);
+  } catch (err) {
+    // Silently ignore URL setting errors
+  }
+}
+
+if (globalThis.chrome?.runtime?.onInstalled) {
+  chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason === "install") {
+      try {
+        chrome.tabs.create({
+          url: chrome.runtime.getURL("pages/welcome.html")
+        });
+      } catch (err) {
+        // Silently ignore tab creation errors
+      }
+    }
+  });
+}
 
 function generateKey(reqData) {
   return `${reqData.method || "GET"}-${reqData.url}-${JSON.stringify(reqData.data || {}).slice(0, 100)}`;
@@ -63,6 +86,6 @@ if (globalThis.chrome?.tabs?.onRemoved) {
   chrome.tabs.onRemoved.addListener((tabId) => {
     try {
       chrome.storage.local.remove(`recentTabJson_${tabId}`);
-    } catch {}
+    } catch { }
   });
 }
