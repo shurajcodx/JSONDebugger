@@ -2,12 +2,12 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Manifest Version: 3](https://img.shields.io/badge/Manifest-MV3-orange.svg)](extension/manifest.json)
-[![Version: 2.0.0](https://img.shields.io/badge/Version-2.0.0-purple.svg)](CHANGELOG.md)
+[![Version: 2.1.0](https://img.shields.io/badge/Version-2.1.0-purple.svg)](CHANGELOG.md)
 [![JavaScript: ES6+](https://img.shields.io/badge/JavaScript-ES6%2B-yellow.svg)](extension/popup/popup.js)
-[![CI](https://github.com/your-username/JSONDebugger/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/JSONDebugger/actions)
+[![CI](https://github.com/shurajcodx/JSONDebugger/actions/workflows/ci.yml/badge.svg)](https://github.com/shurajcodx/JSONDebugger/actions)
 [![Tests: Passing](https://img.shields.io/badge/Tests-Passing-green.svg)](tests/)
 
-JSON Debugger is a high-performance, developer-first Chrome extension designed to inspect, format, repair, generate code, diff payloads, and analyze JSON or JSON-like data locally.
+JSON Debugger is a high-performance, developer-first Chrome extension designed to inspect, format, repair, generate code, diff payloads, and analyze JSON or JSON-like data locally with DevTools and Chrome Side Panel support.
 
 With a fully feature-rich popup workspace, dedicated Chrome DevTools panel, multi-language code generator, side-by-side visual diff tool, and intelligent syntax corrector, it turns raw, unreadable API responses into beautifully structured, queryable data in a single click.
 
@@ -71,7 +71,7 @@ To load and test the unpacked extension in Google Chrome locally:
 1. **Clone the repository**:
 
    ```bash
-   git clone https://github.com/your-username/JSONDebugger.git
+   git clone https://github.com/shurajcodx/JSONDebugger.git
    cd JSONDebugger
    ```
 
