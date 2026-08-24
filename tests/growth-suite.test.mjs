@@ -4,6 +4,7 @@ import { generateTypeScript, generateZod, generateGo, generatePython, inferRootN
 import { evaluateJSONPath, buildJSONPath } from "../extension/utilities/jsonpath.js";
 import { isJWT, decodeJWT, isBase64, decodeBase64 } from "../extension/utilities/decoder.js";
 import { diffJSON, renderDiffHTML } from "../extension/utilities/differ.js";
+import { getReviewUrl, getFeedbackUrl, shouldShowReviewPrompt } from "../extension/utilities/feedback.js";
 
 test("Smart URL & Type Naming Generator Utility", () => {
   assert.strictEqual(inferRootName("https://jsonplaceholder.typicode.com/users/1"), "User");
@@ -53,6 +54,30 @@ test("Side-by-Side Visual Diff Utility", () => {
 
   assert.match(rightHTML, /NYC/);
   assert.match(leftHTML, /diff-modified/);
+});
+
+test("Feedback & Rating Review Milestone Utility", () => {
+  assert.match(getReviewUrl("kdkpefhcmjklhbfhbbogehnbcdlgmbii"), /chromewebstore\.google\.com\/detail\/kdkpefhcmjklhbfhbbogehnbcdlgmbii\/reviews/);
+  assert.match(getFeedbackUrl("kdkpefhcmjklhbfhbbogehnbcdlgmbii"), /chromewebstore\.google\.com\/detail\/kdkpefhcmjklhbfhbbogehnbcdlgmbii\/support/);
+  assert.strictEqual(getReviewUrl(""), "https://chromewebstore.google.com");
+
+  // Less than 5 usages -> do not show prompt
+  assert.strictEqual(shouldShowReviewPrompt({ count: 4, state: "unprompted", dismissTime: 0 }), false);
+
+  // 5 or more usages and unprompted -> show prompt
+  assert.strictEqual(shouldShowReviewPrompt({ count: 5, state: "unprompted", dismissTime: 0 }), true);
+  assert.strictEqual(shouldShowReviewPrompt({ count: 12, state: "unprompted", dismissTime: 0 }), true);
+
+  // Already rated -> never show prompt again
+  assert.strictEqual(shouldShowReviewPrompt({ count: 20, state: "rated", dismissTime: 0 }), false);
+
+  // Dismissed recently (within 14 days) -> do not show prompt
+  const recentDismiss = Date.now() - (2 * 24 * 60 * 60 * 1000);
+  assert.strictEqual(shouldShowReviewPrompt({ count: 10, state: "dismissed", dismissTime: recentDismiss }), false);
+
+  // Dismissed long ago (after 14 days) -> show prompt again
+  const oldDismiss = Date.now() - (15 * 24 * 60 * 60 * 1000);
+  assert.strictEqual(shouldShowReviewPrompt({ count: 15, state: "dismissed", dismissTime: oldDismiss }), true);
 });
 
 console.log("All growth suite tests passed.");

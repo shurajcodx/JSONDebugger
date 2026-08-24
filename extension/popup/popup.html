@@ -14,17 +14,38 @@
           <span class="title">JSON Debugger</span>
         </div>
         <div class="header-actions">
+          <button type="button" class="action-icon-btn" id="sidePanelButton" aria-label="Open in Side Panel" title="Open in Chrome Side Panel">◧</button>
+          <button type="button" class="action-icon-btn" id="headerRateBtn" aria-label="Rate & Feedback" title="Rate & Feedback on Chrome Web Store">★</button>
           <button type="button" class="theme-btn" id="themeButton" aria-label="Switch theme"></button>
           <span class="badge neutral" id="badge">Ready</span>
         </div>
       </div>
 
-      <div class="url-bar" id="tabDetect" hidden style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;">
-        <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
-          <div class="url-dot"></div>
-          <span class="url-text" id="tabDetectText" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;">Detected JSON</span>
+      <!-- In-App Review & Growth Prompt Banner -->
+      <div class="review-banner" id="reviewBanner" hidden>
+        <div class="review-banner-header">
+          <span class="review-banner-title">Enjoying JSON Debugger? ⭐</span>
+          <button type="button" class="review-close-btn" id="reviewDismissBtn" aria-label="Dismiss">✕</button>
         </div>
-        <select id="tabDetectSelect" style="max-width:180px;padding:3px 6px;font-size:10.5px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-background-primary);color:var(--color-text-primary);cursor:pointer;" hidden></select>
+        <p class="review-banner-desc">Help other developers find this tool with a quick 5-star rating on Chrome Web Store!</p>
+        <div class="review-banner-actions">
+          <button type="button" class="sm-btn primary" id="reviewRateBtn">⭐ Rate & Review</button>
+          <button type="button" class="sm-btn" id="reviewDismissBtn2">✕ Later</button>
+        </div>
+      </div>
+
+      <div class="url-bar" id="tabDetect" hidden>
+        <div class="tab-detect-left">
+          <div class="url-dot"></div>
+          <span class="url-text" id="tabDetectText">Detected JSON</span>
+        </div>
+        <div class="detected-dropdown-wrap" id="detectedDropdownWrap" hidden>
+          <button type="button" class="detected-dropdown-btn" id="detectedDropdownBtn">
+            <span id="detectedDropdownLabel">Page JSON</span>
+            <span class="dropdown-arrow">▾</span>
+          </button>
+          <div class="detected-menu" id="detectedMenu" hidden></div>
+        </div>
         <button type="button" class="format-btn" id="formatTabButton">Format tab</button>
       </div>
 

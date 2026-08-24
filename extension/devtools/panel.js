@@ -1,6 +1,7 @@
 import { syntaxHighlightJSON, formatJSON } from "../utilities/formatter.js";
 import { parseInput } from "../utilities/parser.js";
 import { generateTypeScript, generateZod, generateGo, generatePython } from "../utilities/generator.js";
+import { getReviewUrl, getFeedbackUrl, openUrlInNewTab } from "../utilities/feedback.js";
 
 const reqList = document.getElementById("reqList");
 const dtOutput = document.getElementById("dtOutput");
@@ -9,6 +10,7 @@ const dtCopyBtn = document.getElementById("dtCopyBtn");
 const dtSearchInput = document.getElementById("dtSearchInput");
 const dtStatusSelect = document.getElementById("dtStatusSelect");
 const dtClearBtn = document.getElementById("dtClearBtn");
+const dtRateBtn = document.getElementById("dtRateBtn");
 
 const dtCgOutput = document.getElementById("dtCgOutput");
 const dtGenTS = document.getElementById("dtGenTS");
@@ -245,6 +247,10 @@ dtCopyBtn.onclick = async () => {
     setTimeout(() => dtCopyBtn.textContent = old, 1500);
   }
 };
+
+if (dtRateBtn) {
+  dtRateBtn.onclick = () => openUrlInNewTab(getReviewUrl());
+}
 
 function escapeHtml(val) {
   return String(val).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");

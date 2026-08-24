@@ -11,6 +11,8 @@ if (globalThis.chrome?.runtime?.setUninstallURL) {
   }
 }
 
+const CONTEXT_MENU_ID = "jsonDebuggerInspectSelection";
+
 if (globalThis.chrome?.runtime?.onInstalled) {
   chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason === "install") {
@@ -20,6 +22,47 @@ if (globalThis.chrome?.runtime?.onInstalled) {
         });
       } catch (err) {
         // Silently ignore tab creation errors
+      }
+    }
+
+    // Register Context Menu for text selections
+    if (globalThis.chrome?.contextMenus) {
+      chrome.contextMenus.removeAll(() => {
+        chrome.contextMenus.create({
+          id: CONTEXT_MENU_ID,
+          title: "Inspect in JSON Debugger",
+          contexts: ["selection"]
+        }, () => {
+          if (chrome.runtime.lastError) {
+            // Ignore duplicate menu errors
+          }
+        });
+      });
+    }
+  });
+}
+
+// Handle Context Menu clicks
+if (globalThis.chrome?.contextMenus?.onClicked) {
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    if (info.menuItemId === CONTEXT_MENU_ID && info.selectionText) {
+      try {
+        await chrome.storage.local.set({ jsonDebuggerPendingInspect: info.selectionText });
+
+        if (tab?.windowId && globalThis.chrome?.sidePanel?.open) {
+          try {
+            await chrome.sidePanel.open({ windowId: tab.windowId });
+            return;
+          } catch {
+            // Fallback to opening popup in tab
+          }
+        }
+
+        chrome.tabs.create({
+          url: chrome.runtime.getURL("popup/popup.html")
+        });
+      } catch {
+        // Silently ignore navigation errors
       }
     }
   });
@@ -78,6 +121,16 @@ if (globalThis.chrome?.runtime?.onMessage) {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === "CAPTURED_JSON_REQUEST" && message.data) {
       handleCapturedRequest(sender, message.data);
+    }
+  });
+}
+
+if (globalThis.chrome?.tabs?.onUpdated) {
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.url) {
+      try {
+        chrome.storage.local.remove(`recentTabJson_${tabId}`);
+      } catch {}
     }
   });
 }

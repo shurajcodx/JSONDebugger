@@ -10,8 +10,12 @@ assert.deepEqual(manifest.content_scripts[0].js, ["content/network-interceptor.j
 assert.equal(manifest.content_scripts[0].world, "MAIN");
 assert.deepEqual(manifest.content_scripts[1].js, ["content/network-bridge.js", "content/json-page.js"]);
 assert.equal(manifest.permissions.includes("activeTab"), true);
+assert.equal(manifest.permissions.includes("contextMenus"), true);
 assert.equal(manifest.permissions.includes("scripting"), true);
+assert.equal(manifest.permissions.includes("sidePanel"), true);
 assert.equal(manifest.permissions.includes("storage"), true);
+assert.equal(manifest.permissions.includes("tabs"), true);
+assert.equal(manifest.side_panel?.default_path, "popup/popup.html");
 assert.equal(manifest.host_permissions.includes("http://*/*"), true);
 assert.equal(manifest.host_permissions.includes("https://*/*"), true);
 

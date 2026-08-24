@@ -4,14 +4,30 @@ import { generateTypeScript, generateZod, generateGo, generatePython } from "../
 import { evaluateJSONPath } from "../utilities/jsonpath.js";
 import { isJWT, decodeJWT } from "../utilities/decoder.js";
 import { diffJSON, renderDiffHTML } from "../utilities/differ.js";
+import {
+  getUsageStats,
+  incrementUsage,
+  shouldShowReviewPrompt,
+  recordReviewAction,
+  getReviewUrl,
+  getFeedbackUrl,
+  openUrlInNewTab,
+  PENDING_INSPECT_KEY
+} from "../utilities/feedback.js";
 
 // --- DOM Elements ---
-// Global/Header
+// Global/Header & Growth
 const badge = document.querySelector("#badge");
 const tabDetect = document.querySelector("#tabDetect");
 const tabDetectText = document.querySelector("#tabDetectText");
 const formatTabButton = document.querySelector("#formatTabButton");
 const themeButton = document.querySelector("#themeButton");
+const sidePanelButton = document.querySelector("#sidePanelButton");
+const headerRateBtn = document.querySelector("#headerRateBtn");
+const reviewBanner = document.querySelector("#reviewBanner");
+const reviewRateBtn = document.querySelector("#reviewRateBtn");
+const reviewDismissBtn = document.querySelector("#reviewDismissBtn");
+const reviewDismissBtn2 = document.querySelector("#reviewDismissBtn2");
 
 // Raw JSON Tab
 const input = document.querySelector("#input");
@@ -442,15 +458,9 @@ const extractJsonTextFromPage = () => {
 
   if (!document.body) return { ok: false, sources: [] };
 
-  // 1. Direct RAW page JSON (if visiting a raw .json document)
-  const getExistingViewerText = () => {
-    const viewer = document.getElementById(PAGE_VIEWER_ID);
-    return viewer?.querySelector("[data-view='pretty']")?.textContent?.trim() || "";
-  };
-
-  const existingViewerText = getExistingViewerText();
-  let rawText = existingViewerText;
-  if (!rawText) {
+  // 1. Raw JSON shape on entire page
+  let rawText = "";
+  if (document.body) {
     const isRawShape = [...document.body.children].filter(c => c.tagName !== "SCRIPT" && c.tagName !== "STYLE").length <= 1;
     const isMime = /(^|[/+])json\b/i.test(document.contentType || "");
     if (isRawShape || isMime) {
@@ -465,7 +475,9 @@ const extractJsonTextFromPage = () => {
       if (val && typeof val === "object") {
         sources.push({
           label: "Page JSON",
-          rawText
+          rawText,
+          method: "PAGE",
+          isPageJson: true
         });
       }
     } catch {}
@@ -482,7 +494,9 @@ const extractJsonTextFromPage = () => {
           const label = script.id ? script.id : "Embedded State";
           sources.push({
             label,
-            rawText: text
+            rawText: text,
+            method: "STATE",
+            isPageJson: false
           });
         }
       } catch {}
@@ -502,7 +516,9 @@ const extractJsonTextFromPage = () => {
           sources.push({
             label: shortLabel,
             url: name,
-            isFetchUrl: true
+            method: "GET",
+            isFetchUrl: true,
+            isPageJson: false
           });
         } catch {}
       }
@@ -529,52 +545,13 @@ const extractJsonTextFromPage = () => {
 const importActiveTabJson = async (tab) => {
   if (!tab?.id) return;
 
-  const tabDetectChips = document.querySelector("#tabDetectChips");
   const sources = [];
+  let currentHostname = "";
+  try {
+    if (tab.url) currentHostname = new URL(tab.url).hostname;
+  } catch {}
 
-  // A. Check chrome.storage.local for captured network JSON requests for this active tab/domain
-  if (globalThis.chrome?.storage?.local) {
-    try {
-      const storageKey = `recentTabJson_${tab.id}`;
-      const res = await new Promise(r => chrome.storage.local.get([storageKey], r));
-      const captured = res[storageKey];
-      if (Array.isArray(captured)) {
-        captured.forEach(req => {
-          let label = req.url;
-          try {
-            const urlObj = new URL(req.url);
-            label = `${req.method} ${urlObj.pathname.split('/').filter(Boolean).slice(-2).join('/') || '/'}`;
-          } catch {}
-          sources.push({
-            label,
-            rawText: req.rawText || JSON.stringify(req.data, null, 2)
-          });
-        });
-      }
-
-      if (tab.url) {
-        const hostname = new URL(tab.url).hostname;
-        const domainKey = `domainJson_${hostname}`;
-        const resDomain = await new Promise(r => chrome.storage.local.get([domainKey], r));
-        const capturedDomain = resDomain[domainKey];
-        if (Array.isArray(capturedDomain)) {
-          capturedDomain.forEach(req => {
-            let label = req.url;
-            try {
-              const urlObj = new URL(req.url);
-              label = `${req.method} ${urlObj.pathname.split('/').filter(Boolean).slice(-2).join('/') || '/'}`;
-            } catch {}
-            sources.push({
-              label,
-              rawText: req.rawText
-            });
-          });
-        }
-      }
-    } catch {}
-  }
-
-  // B. Check active tab DOM via scripting
+  // 1. FIRST Priority: Check active tab DOM directly for Page JSON or Embedded State
   if (globalThis.chrome?.scripting && /^https?:\/\//i.test(tab.url || "")) {
     try {
       const [injection] = await chrome.scripting.executeScript({
@@ -588,7 +565,56 @@ const importActiveTabJson = async (tab) => {
     } catch {}
   }
 
-  // Deduplicate sources
+  // 2. SECOND Priority: Check captured background network JSON requests for this active tab/domain
+  if (globalThis.chrome?.storage?.local) {
+    try {
+      const storageKey = `recentTabJson_${tab.id}`;
+      const res = await new Promise(r => chrome.storage.local.get([storageKey], r));
+      const captured = res[storageKey];
+      if (Array.isArray(captured)) {
+        captured.forEach(req => {
+          let reqHost = "";
+          try { reqHost = new URL(req.url).hostname; } catch {}
+          if (currentHostname && reqHost && reqHost !== currentHostname) return;
+
+          let label = req.url;
+          try {
+            const urlObj = new URL(req.url);
+            label = `${urlObj.pathname.split('/').filter(Boolean).slice(-2).join('/') || '/'}`;
+          } catch {}
+          sources.push({
+            label,
+            rawText: req.rawText || JSON.stringify(req.data, null, 2),
+            method: req.method || "GET",
+            isPageJson: false
+          });
+        });
+      }
+
+      if (currentHostname) {
+        const domainKey = `domainJson_${currentHostname}`;
+        const resDomain = await new Promise(r => chrome.storage.local.get([domainKey], r));
+        const capturedDomain = resDomain[domainKey];
+        if (Array.isArray(capturedDomain)) {
+          capturedDomain.forEach(req => {
+            let label = req.url;
+            try {
+              const urlObj = new URL(req.url);
+              label = `${urlObj.pathname.split('/').filter(Boolean).slice(-2).join('/') || '/'}`;
+            } catch {}
+            sources.push({
+              label,
+              rawText: req.rawText || JSON.stringify(req.data, null, 2),
+              method: req.method || "GET",
+              isPageJson: false
+            });
+          });
+        }
+      }
+    } catch {}
+  }
+
+  // Deduplicate sources and prioritize Page JSON first
   const uniqueSources = [];
   const seenKeys = new Set();
   for (const s of sources) {
@@ -598,6 +624,12 @@ const importActiveTabJson = async (tab) => {
       uniqueSources.push(s);
     }
   }
+
+  uniqueSources.sort((a, b) => {
+    if (a.isPageJson) return -1;
+    if (b.isPageJson) return 1;
+    return 0;
+  });
 
   if (uniqueSources.length === 0) {
     tabDetect.hidden = true;
@@ -619,26 +651,54 @@ const importActiveTabJson = async (tab) => {
     }
   };
 
-  const tabDetectSelect = document.querySelector("#tabDetectSelect");
+  const detectedDropdownWrap = document.querySelector("#detectedDropdownWrap");
+  const detectedDropdownBtn = document.querySelector("#detectedDropdownBtn");
+  const detectedDropdownLabel = document.querySelector("#detectedDropdownLabel");
+  const detectedMenu = document.querySelector("#detectedMenu");
 
   if (uniqueSources.length === 1) {
     tabDetectText.textContent = `Loaded ${uniqueSources[0].label}`;
-    if (tabDetectSelect) tabDetectSelect.hidden = true;
+    if (detectedDropdownWrap) detectedDropdownWrap.hidden = true;
     await loadSource(uniqueSources[0]);
   } else {
     tabDetectText.textContent = `Detected (${uniqueSources.length})`;
-    if (tabDetectSelect) {
-      tabDetectSelect.hidden = false;
-      tabDetectSelect.innerHTML = uniqueSources.map((s, idx) => `
-        <option value="${idx}">${escapeHtml(s.label)}</option>
+    if (detectedDropdownWrap && detectedMenu && detectedDropdownLabel) {
+      detectedDropdownWrap.hidden = false;
+      detectedDropdownLabel.textContent = uniqueSources[0].label;
+
+      detectedMenu.innerHTML = uniqueSources.map((s, idx) => `
+        <div class="detected-menu-item ${idx === 0 ? "active" : ""}" data-idx="${idx}">
+          <span class="detected-item-label" title="${escapeHtml(s.label)}">${escapeHtml(s.label)}</span>
+          <span class="detected-item-badge">${escapeHtml(s.method || (s.isPageJson ? "PAGE" : "GET"))}</span>
+        </div>
       `).join("");
 
-      tabDetectSelect.onchange = () => {
-        const s = uniqueSources[+tabDetectSelect.value];
-        if (s) loadSource(s);
+      detectedDropdownBtn.onclick = (e) => {
+        e.stopPropagation();
+        detectedMenu.hidden = !detectedMenu.hidden;
       };
+
+      detectedMenu.querySelectorAll(".detected-menu-item").forEach(item => {
+        item.onclick = (e) => {
+          e.stopPropagation();
+          const idx = Number.parseInt(item.dataset.idx, 10);
+          detectedMenu.querySelectorAll(".detected-menu-item").forEach(i => i.classList.remove("active"));
+          item.classList.add("active");
+          const selected = uniqueSources[idx];
+          if (selected) {
+            detectedDropdownLabel.textContent = selected.label;
+            loadSource(selected);
+          }
+          detectedMenu.hidden = true;
+        };
+      });
+
+      // Close dropdown when clicking outside
+      document.addEventListener("click", () => {
+        if (detectedMenu) detectedMenu.hidden = true;
+      }, { once: true });
     }
-    // Default auto-load the first source
+    // Default auto-load the top priority source (Page JSON)
     await loadSource(uniqueSources[0]);
   }
 };
@@ -943,6 +1003,7 @@ if (genTSBtn) {
   genPyBtn.onclick = () => { currentGenLang = "py"; setLangBtnActive(genPyBtn); updateCodeGen(); };
   cgCopyBtn.onclick = async () => {
     await navigator.clipboard.writeText(cgOutput.textContent);
+    trackUsage();
     const old = cgCopyBtn.textContent;
     cgCopyBtn.textContent = "Copied!";
     setTimeout(() => cgCopyBtn.textContent = old, 1500);
@@ -967,6 +1028,7 @@ function runDiff() {
     const { leftHTML, rightHTML } = renderDiffHTML(diffs);
     if (diffLeftOut) diffLeftOut.innerHTML = leftHTML;
     if (diffRightOut) diffRightOut.innerHTML = rightHTML;
+    trackUsage();
   } catch (err) {
     if (diffLeftOut) diffLeftOut.innerHTML = `<span style="color:var(--color-danger);font-size:11px;">Invalid JSON in inputs</span>`;
   }
@@ -978,7 +1040,141 @@ if (runDiffBtn) {
 if (diffInputLeft) diffInputLeft.addEventListener("input", runDiff);
 if (diffInputRight) diffInputRight.addEventListener("input", runDiff);
 
+// --- Feedback, Rating & Side Panel Handlers ---
+const checkReviewPrompt = async () => {
+  try {
+    const stats = await getUsageStats();
+    if (reviewBanner) {
+      reviewBanner.hidden = !shouldShowReviewPrompt(stats);
+    }
+  } catch {}
+};
+
+const trackUsage = async () => {
+  try {
+    await incrementUsage();
+    await checkReviewPrompt();
+  } catch {}
+};
+
+if (sidePanelButton) {
+  sidePanelButton.addEventListener("click", async () => {
+    if (globalThis.chrome?.sidePanel?.open && globalThis.chrome?.windows?.getCurrent) {
+      try {
+        const win = await chrome.windows.getCurrent();
+        if (win?.id) {
+          await chrome.sidePanel.open({ windowId: win.id });
+          window.close();
+          return;
+        }
+      } catch {}
+    }
+    alert("To keep JSON Debugger pinned, right-click the extension icon in Chrome toolbar and select 'Open side panel'!");
+  });
+}
+
+if (headerRateBtn) {
+  headerRateBtn.addEventListener("click", () => openUrlInNewTab(getReviewUrl()));
+}
+
+if (reviewRateBtn) {
+  reviewRateBtn.addEventListener("click", async () => {
+    await recordReviewAction("rated");
+    if (reviewBanner) reviewBanner.hidden = true;
+    openUrlInNewTab(getReviewUrl());
+  });
+}
+
+const dismissReviewBanner = async () => {
+  await recordReviewAction("dismissed");
+  if (reviewBanner) reviewBanner.hidden = true;
+};
+
+if (reviewDismissBtn) {
+  reviewDismissBtn.addEventListener("click", dismissReviewBanner);
+}
+if (reviewDismissBtn2) {
+  reviewDismissBtn2.addEventListener("click", dismissReviewBanner);
+}
+
+const checkPendingInspect = () => {
+  return new Promise((resolve) => {
+    if (!globalThis.chrome?.storage?.local) {
+      resolve(false);
+      return;
+    }
+
+    try {
+      chrome.storage.local.get([PENDING_INSPECT_KEY], (res) => {
+        if (globalThis.chrome?.runtime?.lastError || !res?.[PENDING_INSPECT_KEY]) {
+          resolve(false);
+          return;
+        }
+
+        input.value = res[PENDING_INSPECT_KEY];
+        chrome.storage.local.remove([PENDING_INSPECT_KEY]);
+        renderRawResult();
+        switchTab("raw");
+        resolve(true);
+      });
+    } catch {
+      resolve(false);
+    }
+  });
+};
+
+// Hook usage tracking to copy and format actions
+if (copyButton) {
+  const origCopyHandler = copyButton.onclick;
+  copyButton.addEventListener("click", () => trackUsage());
+}
+
+// --- Live Active Tab & Side Panel Watchers ---
+if (globalThis.chrome?.tabs?.onUpdated) {
+  chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+    if (changeInfo.status === "complete" || changeInfo.url) {
+      try {
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (activeTab && activeTab.id === tabId) {
+          await prepareActiveTabFormatting();
+        }
+      } catch {}
+    }
+  });
+}
+
+if (globalThis.chrome?.tabs?.onActivated) {
+  chrome.tabs.onActivated.addListener(async () => {
+    try {
+      await prepareActiveTabFormatting();
+    } catch {}
+  });
+}
+
+if (globalThis.chrome?.storage?.onChanged) {
+  chrome.storage.onChanged.addListener(async (changes, area) => {
+    if (area === "local") {
+      if (changes[PENDING_INSPECT_KEY]?.newValue) {
+        await checkPendingInspect();
+      } else {
+        const keys = Object.keys(changes);
+        if (keys.some(k => k.startsWith("recentTabJson_") || k.startsWith("domainJson_"))) {
+          await prepareActiveTabFormatting();
+        }
+      }
+    }
+  });
+}
+
 // --- Run ---
-prepareActiveTabFormatting();
-renderRawResult();
-renderWorkspace();
+const initApp = async () => {
+  const hasPending = await checkPendingInspect();
+  if (!hasPending) {
+    await prepareActiveTabFormatting();
+  }
+  renderRawResult();
+  renderWorkspace();
+  checkReviewPrompt();
+};
+
+initApp();

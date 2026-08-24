@@ -2,6 +2,16 @@
 
 All notable changes to JSON Debugger are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-08-24
+
+### Added
+
+- **In-App Review & Rating Growth Prompt**: Smart, milestone-based prompt triggered after 5 successful developer formatting operations to encourage 5-star ratings on the Chrome Web Store with snooze and rate persistence.
+- **Direct Feedback Loops**: Added direct header and DevTools top-bar feedback & rating action buttons linking directly to Chrome Web Store reviews and support.
+- **Right-Click Context Menu ("Inspect in JSON Debugger")**: Highlight any text on any webpage or log console and right-click to instantly format and inspect in JSON Debugger.
+- **Chrome Native Side Panel Support (`chrome.sidePanel`)**: Integrated Side Panel API support allowing developers to keep JSON Debugger pinned side-by-side with responsive viewport scaling.
+- **Feedback & Rating Test Suite**: Added comprehensive test coverage for milestone thresholds, cooldown logic, and review URL generation.
+
 ## [2.0.1] - 2026-07-24
 
 ### Added
